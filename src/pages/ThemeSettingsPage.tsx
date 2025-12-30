@@ -4,6 +4,7 @@ import { persistence, SnapshotMeta } from "@state/persistence";
 import { Panel } from "@components/common/Panel";
 import { Field } from "@components/forms/Field";
 import { LivePreview } from "@components/editor/LivePreview";
+import type { LoadingPresetKind } from "@models/designSystem";
 
 type Rgba = { r: number; g: number; b: number; a: number };
 
@@ -96,17 +97,17 @@ const fallbackLoadingPresets = {
   "orbit-dots": { kind: "orbit-dots" }
 } as const;
 
-type LoadingPresetResolved = { id: string; kind: "skeleton" | "progress" | "dots"; color: string };
+type LoadingPresetResolved = { id: string; kind: LoadingPresetKind; color: string };
 
 const resolveLoadingPreset = (
-  motion: { color?: string; defaultPreset?: string; presets?: Record<string, { kind: LoadingPresetResolved["kind"]; color?: string }> },
+  motion: { color?: string; defaultPreset?: string; presets?: Record<string, { kind: LoadingPresetKind; color?: string }> },
   presetId?: string
 ): LoadingPresetResolved => {
   const presets = motion?.presets ?? fallbackLoadingPresets;
-  const requested = presetId && presets[presetId] ? presetId : undefined;
+  const requested = presetId && (presets as any)[presetId] ? presetId : undefined;
   const id = requested ?? motion?.defaultPreset ?? "skeleton";
-  const preset = presets[id] ?? fallbackLoadingPresets.skeleton;
-  const color = motion?.color || preset.color || "#e7f0ff";
+  const preset = (presets as any)[id] ?? fallbackLoadingPresets.skeleton;
+  const color = motion?.color || ("color" in preset ? preset.color : undefined) || "#e7f0ff";
   return { id, kind: preset.kind, color };
 };
 

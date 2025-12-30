@@ -10,8 +10,10 @@ export type DesignSystemState = {
   snapshot: DesignSystemSnapshot;
   selectedSection: SectionId;
   dirty: boolean;
+  toastCallback?: (message: string, type: "success" | "error" | "info") => void;
   selectSection: (id: SectionId) => void;
   setSnapshot: (snapshot: DesignSystemSnapshot) => void;
+  setToastCallback: (callback: (message: string, type: "success" | "error" | "info") => void) => void;
   updateGlobalToken: (path: string, value: string | number | undefined) => void;
   updateComponentTokens: (componentId: string, target: "base" | "state" | "variant", key: string, tokens: ComponentTokens) => void;
   resetComponentTokens: (componentId: string) => void;
@@ -76,6 +78,8 @@ export const useDesignSystem = create<DesignSystemState>((set, get) => ({
   snapshot: getInitialSnapshot(),
   selectedSection: "theme",
   dirty: false,
+  toastCallback: undefined,
+  setToastCallback: (callback) => set({ toastCallback: callback }),
   selectSection: (id) => {
     console.log('[Store] Navigating to section:', id);
     const state = get();
@@ -169,19 +173,25 @@ export const useDesignSystem = create<DesignSystemState>((set, get) => ({
     
     console.log('[Store] Saving NEW snapshot:', next.name, next.id);
     persistence.save(next);
-    set({ snapshot: next, dirty: false });
-  },
+    set({ snapshot: next, dirty: false });    
+    const toast = get().toastCallback;
+    if (toast) toast(`Saved: ${next.name}`, "success");  },
   loadSnapshot: (id) => {
     console.log('[Store] Loading snapshot:', id);
     const snap = persistence.load(id);
     if (!snap) {
       console.warn('[Store] Snapshot not found:', id);
+      const toast = get().toastCallback;
+      if (toast) toast("Failed to load snapshot", "error");
       return;
     }
     console.log('[Store] Snapshot loaded successfully:', snap.name);
     console.log('[Store] Sample color after load:', snap.globals.color.accent.primary.base);
     // Clone the snapshot to ensure React detects the change
     set({ snapshot: structuredClone(snap), selectedSection: "theme", dirty: false });
+    
+    const toast = get().toastCallback;
+    if (toast) toast(`Loaded: ${snap.name}`, "success");
   },
   duplicateSnapshot: (name) => {
     const current = get().snapshot;
@@ -194,5 +204,8 @@ export const useDesignSystem = create<DesignSystemState>((set, get) => ({
     };
     persistence.save(next);
     set({ snapshot: next, dirty: false });
+    
+    const toast = get().toastCallback;
+    if (toast) toast(`Duplicated: ${next.name}`, "success");
   }
 }));

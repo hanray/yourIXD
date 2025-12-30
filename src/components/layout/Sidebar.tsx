@@ -71,8 +71,12 @@ const SidebarItem: React.FC<ItemProps> = ({ label, active, onClick }) => (
       marginBottom: 4,
       borderRadius: "var(--radius-sm)",
       cursor: "pointer",
-      color: "var(--text)"
+      color: "var(--text)",
+      transition: "transform 100ms ease"
     }}
+    onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.98)"}
+    onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+    onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
   >
     <span style={{
       display: "block",
@@ -80,7 +84,8 @@ const SidebarItem: React.FC<ItemProps> = ({ label, active, onClick }) => (
       borderRadius: "8px",
       background: active ? "rgba(15, 98, 254, 0.08)" : "transparent",
       color: active ? "#0f62fe" : "inherit",
-      fontWeight: active ? 600 : 500
+      fontWeight: active ? 600 : 500,
+      transition: "all 150ms ease"
     }}>
       {label}
     </span>

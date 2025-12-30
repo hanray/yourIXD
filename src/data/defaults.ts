@@ -26,6 +26,9 @@ export const defaultSnapshot = (): DesignSystemSnapshot => ({
         disabled: "rgba(15, 23, 42, 0.35)"
       },
       border: {
+        default: "#e2e8f0",
+        subtle: "#edf2f7",
+        focus: "#0f62fe",
         danger: "#b91c1c"
       },
       accent: {

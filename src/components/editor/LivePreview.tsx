@@ -210,7 +210,7 @@ const resolveLoadingPreset = (snapshot: DesignSystemSnapshot, presetId?: string)
   const requested = presetId && presets[presetId as keyof typeof presets] ? presetId : undefined;
   const id = requested ?? motion?.defaultPreset ?? "skeleton";
   const preset = presets[id as keyof typeof presets] ?? fallbackLoadingPresets.skeleton;
-  const color = motion?.color || preset.color || "#e7f0ff";
+  const color = motion?.color || ("color" in preset ? preset.color : undefined) || "#e7f0ff";
   return { id, kind: preset.kind, color } as const;
 };
 
