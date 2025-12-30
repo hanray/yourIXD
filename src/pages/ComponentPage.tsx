@@ -472,9 +472,7 @@ export const ComponentPage = ({ componentId }: Props) => {
         <div>
           <div style={sectionTitleFlat}>Base intent</div>
           <div style={mutedSmall}>
-            {selectedState === "All"
-              ? "Edits apply to ALL states (shared base tokens)."
-              : `Edits apply to the currently selected state: ${selectedState}.`}
+            Foundation: Layout, colors, typography, and shape that define how this component looks.
           </div>
         </div>
       </div>
@@ -654,7 +652,7 @@ export const ComponentPage = ({ componentId }: Props) => {
       <div style={sectionHeaderFlat}>
         <div>
           <div style={sectionTitleFlat}>State intent</div>
-          <div style={mutedSmall}>Adjust only when behavior diverges from default.</div>
+          <div style={mutedSmall}>Interactive states: Override colors and styles for hover, focus, disabled, etc.</div>
         </div>
       </div>
       <div style={{ display: "grid", gap: 16 }}>
@@ -851,7 +849,6 @@ export const ComponentPage = ({ componentId }: Props) => {
           <div style={controlsHeader}>
             <div>
               <div style={sectionTitleFlat}>Controls</div>
-              <div style={mutedSmall}>Secondary. Expand only when visuals need intent changes.</div>
             </div>
           </div>
           <div style={{ display: "grid", gap: 32, marginTop: 24 }}>
