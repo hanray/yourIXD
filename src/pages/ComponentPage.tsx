@@ -478,7 +478,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           </div>
         </div>
       </div>
-      <div style={controlGridFlatFlat}> 
+      <div style={controlGridFlat}> 
         <div style={controlGroup}>
           <div style={groupLabel}>Layout</div>
           <TokenControl
