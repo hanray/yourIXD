@@ -295,10 +295,10 @@ export const ComponentPage = ({ componentId }: Props) => {
       }
     };
     return (
-      <div key={stateKey} style={stateControlCard}>
-        <div style={subSectionHeader}>
+      <div key={stateKey} style={stateCard}>
+        <div style={stateHeader}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontWeight: 700 }}>State - {stateKey}</span>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>{stateKey}</span>
           </div>
           {stateKey !== "default" && (
             <button style={ghostButton} onClick={() => setSelectedState(stateKey)}>
@@ -467,20 +467,20 @@ export const ComponentPage = ({ componentId }: Props) => {
   if (!spec) return <div style={{ padding: 24 }}>Component not found</div>;
 
   const renderBaseGroup = () => (
-    <details open style={controlSection}>
-      <summary style={summaryRow}>
+    <div style={controlSectionFlat}>
+      <div style={sectionHeaderFlat}>
         <div>
-          <div style={sectionTitle}>Base intent</div>
-          <div style={muted}>
+          <div style={sectionTitleFlat}>Base intent</div>
+          <div style={mutedSmall}>
             {selectedState === "All"
               ? "Edits apply to ALL states (shared base tokens)."
               : `Edits apply to the currently selected state: ${selectedState}.`}
           </div>
         </div>
-      </summary>
-      <div style={controlGrid}> 
-        <div style={controlColumn}>
-          <div style={miniLabel}>Layout</div>
+      </div>
+      <div style={controlGridFlatFlat}> 
+        <div style={controlGroup}>
+          <div style={groupLabel}>Layout</div>
           <TokenControl
             label="Padding X"
             value={currentStateTokens.spacing?.paddingX ?? spec.baseTokens.spacing?.paddingX}
@@ -526,8 +526,8 @@ export const ComponentPage = ({ componentId }: Props) => {
           />
         </div>
 
-        <div style={controlColumn}>
-          <div style={miniLabel}>Color</div>
+        <div style={controlGroup}>
+          <div style={groupLabel}>Color</div>
           <TokenControl
             label="Foreground"
             value={currentStateTokens.color?.fg ?? spec.baseTokens.color?.fg}
@@ -557,8 +557,8 @@ export const ComponentPage = ({ componentId }: Props) => {
           />
         </div>
 
-        <div style={controlColumn}>
-          <div style={miniLabel}>Type</div>
+        <div style={controlGroup}>
+          <div style={groupLabel}>Type</div>
           <TokenControl
             label="Font family"
             value={currentStateTokens.typography?.fontFamily ?? spec.baseTokens.typography?.fontFamily ?? fontFamilyOptions[0]?.value}
@@ -600,8 +600,8 @@ export const ComponentPage = ({ componentId }: Props) => {
           />
         </div>
 
-        <div style={controlColumn}>
-          <div style={miniLabel}>Shape</div>
+        <div style={controlGroup}>
+          <div style={groupLabel}>Shape</div>
           <TokenControl
             label="Radius"
             value={currentStateTokens.radius ?? spec.baseTokens.radius}
@@ -646,29 +646,31 @@ export const ComponentPage = ({ componentId }: Props) => {
           />
         </div>
       </div>
-    </details>
+    </div>
   );
 
   const renderStateGroup = () => (
-    <details open style={controlSection}>
-      <summary style={summaryRow}>
+    <div style={controlSectionFlat}>
+      <div style={sectionHeaderFlat}>
         <div>
-          <div style={sectionTitle}>State intent</div>
-          <div style={muted}>Adjust only when behavior diverges from default.</div>
+          <div style={sectionTitleFlat}>State intent</div>
+          <div style={mutedSmall}>Adjust only when behavior diverges from default.</div>
         </div>
-      </summary>
-      <div style={{ display: "grid", gap: 12 }}>
+      </div>
+      <div style={{ display: "grid", gap: 16 }}>
         {coreStates.map((stateKey) => renderStateBlock(stateKey))}
         {secondaryStates.length > 0 && (
-          <details style={nestedDetails}>
-            <summary style={summaryRow}>Advanced states ({secondaryStates.length})</summary>
-            <div style={{ display: "grid", gap: 10, marginTop: 8 }}>
+          <details style={nestedDetailsFlat}>
+            <summary style={summaryRowFlat}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>Advanced states ({secondaryStates.length})</span>
+            </summary>
+            <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
               {secondaryStates.map((stateKey) => renderStateBlock(stateKey))}
             </div>
           </details>
         )}
       </div>
-    </details>
+    </div>
   );
 
   const inverseTokensPatch: ComponentTokens | undefined = inversePreview
@@ -709,8 +711,8 @@ export const ComponentPage = ({ componentId }: Props) => {
       <div style={visualSection}>
         <div style={visualHeader}>
           <div>
-            <div style={sectionTitle}>Visual states</div>
-            <div style={muted}>States in one strip; selected enlarges, others dim.</div>
+            <div style={sectionTitleFlat}>Visual states</div>
+            <div style={mutedSmall}>States in one strip; selected enlarges, others dim.</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -817,7 +819,7 @@ export const ComponentPage = ({ componentId }: Props) => {
       <div style={leftRail}>
         <div>
           <div style={{ fontWeight: 800 }}>{spec?.label ?? componentId}</div>
-          <div style={muted}>Observe first, edit second.</div>
+          <div style={mutedSmall}>Observe first, edit second.</div>
         </div>
         <div style={{ display: "grid", gap: 6 }} role="radiogroup" aria-label="States">
           {allStates.map((state) => {
@@ -848,11 +850,11 @@ export const ComponentPage = ({ componentId }: Props) => {
         <div style={bottomRow}>
           <div style={controlsHeader}>
             <div>
-              <div style={sectionTitle}>Controls</div>
-              <div style={muted}>Secondary. Expand only when visuals need intent changes.</div>
+              <div style={sectionTitleFlat}>Controls</div>
+              <div style={mutedSmall}>Secondary. Expand only when visuals need intent changes.</div>
             </div>
           </div>
-          <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ display: "grid", gap: 32, marginTop: 24 }}>
             {renderBaseGroup()}
             {renderStateGroup()}
           </div>
@@ -1512,6 +1514,68 @@ const controlSection: CSSProperties = {
   padding: 10
 };
 
+const controlSectionFlat: CSSProperties = {
+  display: "grid",
+  gap: 16,
+  paddingBottom: 32,
+  borderBottom: "1px solid #e8ecf0"
+};
+
+const sectionHeaderFlat: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  marginBottom: 4
+};
+
+const sectionTitleFlat: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: "var(--text)",
+  marginBottom: 2
+};
+
+const mutedSmall: CSSProperties = {
+  fontSize: 13,
+  color: "var(--text-muted)",
+  fontWeight: 500
+};
+
+const controlGridFlat: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+  gap: 20,
+  marginTop: 8
+};
+
+const controlGroup: CSSProperties = {
+  display: "grid",
+  gap: 12
+};
+
+const groupLabel: CSSProperties = {
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "var(--text-muted)",
+  fontWeight: 700,
+  marginBottom: 4
+};
+
+const nestedDetailsFlat: CSSProperties = {
+  marginTop: 8,
+  paddingTop: 16,
+  borderTop: "1px solid #e8ecf0"
+};
+
+const summaryRowFlat: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  cursor: "pointer",
+  color: "var(--text-muted)",
+  transition: "color 150ms ease"
+};
+
 const sectionDivider: CSSProperties = {
   borderTop: "1px solid var(--border)",
   margin: "4px 0"
@@ -1540,6 +1604,20 @@ const controlColumn: CSSProperties = {
   borderRadius: 10,
   background: "var(--surface)",
   border: "1px solid var(--border)"
+};
+
+const stateCard: CSSProperties = {
+  padding: "16px 0",
+  display: "grid",
+  gap: 12
+};
+
+const stateHeader: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  paddingBottom: 8,
+  borderBottom: "1px solid #e8ecf0"
 };
 
 const miniLabel: CSSProperties = {
