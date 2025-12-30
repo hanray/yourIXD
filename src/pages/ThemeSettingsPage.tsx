@@ -184,22 +184,6 @@ export const ThemeSettingsPage = () => {
   const [available, setAvailable] = useState<SnapshotMeta[]>([]);
   const [selectedLoad, setSelectedLoad] = useState<string>("");
   const [loadStatus, setLoadStatus] = useState<"idle" | "success" | "error">("idle");
-  const [webFontFamily, setWebFontFamily] = useState(snapshot.globals.font.web?.family ?? snapshot.globals.font.family.sans);
-  const [webFontSource, setWebFontSource] = useState(snapshot.globals.font.web?.source ?? "");
-  const [webFontKind, setWebFontKind] = useState<"url" | "google">(snapshot.globals.font.web?.kind ?? "url");
-  const basicFontOptions = [
-    "Inter",
-    "Arial",
-    "Segoe UI",
-    "Roboto",
-    "Helvetica Neue",
-    "Georgia",
-    "Times New Roman",
-    "Courier New",
-    "SF Pro Text"
-  ];
-  const [basicFont, setBasicFont] = useState(snapshot.globals.font.family.sans);
-  const [newRoleName, setNewRoleName] = useState("");
   const [motionPreviewSeed, setMotionPreviewSeed] = useState(0);
 
   useEffect(() => {
@@ -208,33 +192,6 @@ export const ThemeSettingsPage = () => {
     setDescription(snapshot.description ?? "");
   }, [snapshot.id, snapshot.name, snapshot.description]);
 
-  useEffect(() => {
-    const currentSans = snapshot.globals.font.family.sans;
-    setWebFontFamily(snapshot.globals.font.web?.family ?? currentSans);
-    setWebFontSource(snapshot.globals.font.web?.source ?? "");
-    setWebFontKind(snapshot.globals.font.web?.kind ?? "url");
-    setBasicFont(currentSans);
-  }, [snapshot.globals.font.web, snapshot.globals.font.family.sans]);
-
-  useEffect(() => {
-    const web = snapshot.globals.font.web;
-    if (!web || !web.family || !web.source) return;
-    const style = document.createElement("style");
-    style.setAttribute("data-ds-webfont", "active");
-    const format = web.source.endsWith("woff") ? "woff" : "woff2";
-    style.textContent = web.kind === "google"
-      ? `@import url('${web.source}');`
-      : `@font-face { font-family: '${web.family}'; src: url('${web.source}') format('${format}'); font-weight: 100 900; font-display: swap; }`;
-    document.head.appendChild(style);
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, [snapshot.globals.font.web]);
-
-  const textRoleOptions = useMemo(() => Object.keys(snapshot.globals.textRole), [snapshot.globals.textRole]);
-  const fontSizeKeys = useMemo(() => Object.keys(snapshot.globals.font.size), [snapshot.globals.font.size]);
-  const lineHeightKeys = useMemo(() => Object.keys(snapshot.globals.lineHeight), [snapshot.globals.lineHeight]);
-  const weightKeys = useMemo(() => Object.keys(snapshot.globals.weight), [snapshot.globals.weight]);
   const spaceKeys = useMemo(() => Object.keys(snapshot.globals.space).sort((a, b) => Number(a) - Number(b)), [snapshot.globals.space]);
   const radiusKeys = useMemo(() => Object.keys(snapshot.globals.radius), [snapshot.globals.radius]);
   const shadowKeys = useMemo(() => Object.keys(snapshot.globals.shadow), [snapshot.globals.shadow]);
@@ -271,32 +228,6 @@ export const ThemeSettingsPage = () => {
   const updateDuration = (key: string, raw: number) => {
     const next = Number.isFinite(raw) ? Math.max(raw, 0) : 0;
     update(`motion.duration.${key}`, toMs(next));
-  };
-
-  const applyWebFont = () => {
-    const family = (webFontFamily || basicFont || "").trim();
-    const source = webFontSource.trim();
-
-    if (!family) {
-      console.info('[UI] Load font skipped: no family provided');
-      return;
-    }
-
-    if (source) {
-      console.info('[UI] Load font (remote)', { family, source, kind: webFontKind });
-      update("font.web.family", family);
-      update("font.web.source", source);
-      update("font.web.kind", webFontKind);
-      update("font.family.sans", family);
-      return;
-    }
-
-    console.info('[UI] Load font (basic selection)', { family });
-    update("font.web.family", undefined);
-    update("font.web.source", undefined);
-    update("font.web.kind", undefined);
-    update("font.family.sans", family);
-    setWebFontFamily(family);
   };
 
   const labelize = (key: string) => key.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -517,118 +448,6 @@ export const ThemeSettingsPage = () => {
           </div>
         </Panel>
 
-        <Panel title="Typography">
-          <div style={{ display: "grid", gap: 14 }}>
-            <div style={subtleHeader}>Web font loader</div>
-            <div style={{ display: "grid", gap: 10 }}>
-              <Field
-                label="Basic font (no URL)"
-                input={(
-                  <select
-                    style={inputStyle}
-                    value={basicFont}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setBasicFont(next);
-                      setWebFontFamily(next);
-                      setWebFontSource("");
-                    }}
-                  >
-                    {basicFontOptions.map((f) => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                )}
-              />
-              <Field label="Font family name" input={<input style={inputStyle} value={webFontFamily} onChange={(e) => setWebFontFamily(e.target.value)} />} />
-              <Field
-                label="Source (URL or Google import)"
-                input={<input style={inputStyle} value={webFontSource} onChange={(e) => setWebFontSource(e.target.value)} placeholder="https://...woff2 or https://fonts.googleapis.com/..." />}
-              />
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <label style={radioLabel}>
-                  <input type="radio" name="fontKind" checked={webFontKind === "url"} onChange={() => setWebFontKind("url")} style={radioInput} />
-                  File URL
-                </label>
-                <label style={radioLabel}>
-                  <input type="radio" name="fontKind" checked={webFontKind === "google"} onChange={() => setWebFontKind("google")} style={radioInput} />
-                  Google import
-                </label>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button style={buttonPrimary} onClick={applyWebFont}>Load font</button>
-              </div>
-            </div>
-
-            <div style={subtleHeader}>Text roles → scale</div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {textRoleOptions.map((role) => {
-                const config = snapshot.globals.textRole[role];
-                return (
-                  <div key={role} style={textRoleRow}>
-                    <div style={{ fontWeight: 600, minWidth: 110 }}>{role}</div>
-                    <select
-                      style={inputStyle}
-                      value={config.size}
-                      onChange={(e) => update(`textRole.${role}.size`, e.target.value)}
-                    >
-                      {fontSizeKeys.map((k) => (
-                        <option key={k} value={`font.size.${k}`}>
-                          Size {k}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      style={inputStyle}
-                      value={config.lineHeight}
-                      onChange={(e) => update(`textRole.${role}.lineHeight`, e.target.value)}
-                    >
-                      {lineHeightKeys.map((k) => (
-                        <option key={k} value={`lineHeight.${k}`}>
-                          Line {k}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      style={inputStyle}
-                      value={config.weight}
-                      onChange={(e) => update(`textRole.${role}.weight`, e.target.value)}
-                    >
-                      {weightKeys.map((k) => (
-                        <option key={k} value={`weight.${k}`}>
-                          Weight {k}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              })}
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <input
-                  style={inputStyle}
-                  placeholder="New role name (e.g., 'hero')"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                />
-                <button
-                  style={buttonPrimary}
-                  onClick={() => {
-                    if (newRoleName && !snapshot.globals.textRole[newRoleName]) {
-                      update(`textRole.${newRoleName}.size`, 'font.size.2');
-                      update(`textRole.${newRoleName}.weight`, 'weight.regular');
-                      update(`textRole.${newRoleName}.lineHeight`, 'lineHeight.normal');
-                      setNewRoleName('');
-                    }
-                  }}
-                  disabled={!newRoleName || !!snapshot.globals.textRole[newRoleName]}
-                >
-                  Add Role
-                </button>
-              </div>
-            </div>
-          </div>
-        </Panel>
-
         <Panel title="Spacing scale">
           <div style={{ display: "grid", gap: 12 }}>
             {spaceKeys.map((key, idx) => (
@@ -812,37 +631,6 @@ const colorInput: CSSProperties = {
   background: "var(--surface-alt)"
 };
 
-const colorRow: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  padding: "8px 10px",
-  borderRadius: 12,
-  background: "rgba(255,255,255,0.6)",
-  border: "1px solid var(--border)"
-};
-
-const stepperWrap: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  width: "100%"
-};
-
-const stepperButtons: CSSProperties = {
-  display: "flex",
-  gap: 6
-};
-
-const pillButton: CSSProperties = {
-  borderRadius: 10,
-  border: "1px solid var(--border)",
-  background: "var(--surface-alt)",
-  padding: "6px 10px",
-  cursor: "pointer",
-  fontWeight: 700
-};
-
 const subtleHeader: CSSProperties = {
   color: "var(--text-muted)",
   fontWeight: 700,
@@ -933,6 +721,37 @@ const motionPreviewBox: CSSProperties = {
   background: "var(--surface-alt)",
   display: "grid",
   gap: 12
+};
+
+const stepperWrap: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8
+};
+
+const stepperButtons: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, 32px)",
+  gap: 4
+};
+
+const pillButton: CSSProperties = {
+  border: "1px solid var(--border)",
+  background: "var(--surface)",
+  borderRadius: 10,
+  padding: "6px 0",
+  cursor: "pointer",
+  fontWeight: 700
+};
+
+const colorRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  padding: "8px 10px",
+  borderRadius: 12,
+  border: "1px solid var(--border)",
+  background: "rgba(255,255,255,0.6)"
 };
 
 const loadingTile: CSSProperties = {

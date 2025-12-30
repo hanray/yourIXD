@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import JSZip from "jszip";
 import { useDesignSystem } from "@state/store";
 import {
   exportTokensJson,
@@ -72,8 +73,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
     );
   };
 
-  const downloadFile = (content: string, filename: string, mimeType: string) => {
-    const blob = new Blob([content], { type: mimeType });
+  const downloadFile = (content: string | Blob, filename: string, mimeType: string) => {
+    const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -89,46 +90,42 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
     try {
       const selectedOptions = options.filter((opt) => opt.checked);
+      const zip = new JSZip();
 
       for (const option of selectedOptions) {
         let content = "";
-        let mimeType = "text/plain";
 
         switch (option.id) {
           case "tokens-json":
             content = exportTokensJson(snapshot);
-            mimeType = "application/json";
             break;
           case "components-json":
             content = exportComponentsJson(snapshot);
-            mimeType = "application/json";
             break;
           case "tokens-css":
             content = exportTokensCss(snapshot);
-            mimeType = "text/css";
             break;
           case "figma-variables":
             content = exportFigmaVariablesJson(snapshot);
-            mimeType = "application/json";
             break;
           case "readme":
             content = exportReadme(snapshot);
-            mimeType = "text/markdown";
             break;
         }
 
         if (content) {
-          downloadFile(content, option.filename, mimeType);
-          // Small delay between downloads to avoid browser blocking
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          zip.file(option.filename, content);
         }
       }
 
-      // Success feedback
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipName = `${snapshot.name || "design-system"}-export.zip`;
+      downloadFile(zipBlob, zipName, "application/zip");
+
       setTimeout(() => {
         setIsExporting(false);
         onClose();
-      }, 500);
+      }, 300);
     } catch (error) {
       console.error("Export failed:", error);
       setIsExporting(false);

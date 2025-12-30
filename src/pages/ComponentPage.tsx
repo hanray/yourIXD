@@ -214,26 +214,35 @@ const TokenControl = ({
           <div style={helperText}>Expected tokens like: {options?.slice(0, 3).map((o) => o.value).join(", ")}{(options?.length ?? 0) > 3 ? " ..." : ""}</div>
         </div>
       ) : canUseInput ? (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            style={inputStyle}
-            value={(() => {
-              if (kind !== "number") return localValue ?? "";
-              const parsed = Number.parseFloat(localValue.replace("px", ""));
-              return Number.isNaN(parsed) ? "" : parsed;
-            })()}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder={placeholder ?? "e.g. 12"}
-            type={kind === "number" ? "number" : "text"}
-            step={step}
-            disabled={disabled}
-          />
-          {numberUnit === "px" && <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>px</span>}
+        <div style={{ display: "grid", gridTemplateColumns: defaultValue ? "1fr auto" : "1fr", gap: 8, alignItems: "center", width: "100%" }}>
+          <div style={{ position: "relative", width: "100%" }}>
+            <input
+              style={{ ...inputStyle, paddingRight: numberUnit ? 40 : inputStyle.paddingRight }}
+              value={(() => {
+                if (kind !== "number") return localValue ?? "";
+                const parsed = Number.parseFloat(localValue.replace("px", ""));
+                return Number.isNaN(parsed) ? "" : parsed;
+              })()}
+              onChange={(e) => handleChange(e.target.value)}
+              placeholder={placeholder ?? "e.g. 12"}
+              type={kind === "number" ? "number" : "text"}
+              step={step}
+              disabled={disabled}
+            />
+            {numberUnit === "px" && (
+              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontWeight: 600 }}>
+                px
+              </span>
+            )}
+          </div>
           {defaultValue && (
             <button type="button" style={resetLink} onClick={() => handleChange(defaultValue)}>
               Reset
             </button>
           )}
+          {kind === "number" && numberUnit === "px" ? (
+            <div style={{ height: 16 }} />
+          ) : null}
         </div>
       ) : (
         <div style={helperText}>No tokens available - Expected something like {placeholder ?? "a token path (e.g. color.text.primary)"}</div>
@@ -437,8 +446,6 @@ export const ComponentPage = ({ componentId }: Props) => {
 
   const requiredStates = spec?.contract?.requiredStates ?? ["default"];
   const allStates = ["All", ...requiredStates];
-  const coreStates = ["default", "hover"].filter((s) => requiredStates.includes(s));
-  const secondaryStates = requiredStates.filter((s) => !coreStates.includes(s));
 
   const currentStateTokens = selectedState === "All" ? spec.baseTokens : spec.states?.[selectedState] ?? {};
 
@@ -469,204 +476,275 @@ export const ComponentPage = ({ componentId }: Props) => {
   const renderBaseGroup = () => (
     <div style={controlSectionFlat}>
       <div style={sectionHeaderFlat}>
-        <div>
-          <div style={sectionTitleFlat}>Base intent</div>
-          <div style={mutedSmall}>
-            Foundation: Layout, colors, typography, and shape that define how this component looks.
+        <div style={sectionTitleFlat}>
+          {selectedState === "All" ? "This will change the component properties for all states" : `${selectedState} controls`}
+        </div>
+      </div>
+      <div style={{ display: "grid", gap: 12 }}>
+        <details style={accordion}>
+          <summary style={accordionSummary}>
+            <span style={accordionTitle}>Layout</span>
+          </summary>
+          <div style={accordionBody}>
+            <TokenControl
+              label="Padding X"
+              value={currentStateTokens.spacing?.paddingX ?? spec.baseTokens.spacing?.paddingX}
+              onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { paddingX: v }) })}
+              options={spaceOptions}
+              resolveValue={toConcrete}
+              placeholder="space.3"
+              kind="number"
+              defaultValue={getDefaultValue("baseTokens.spacing.paddingX")}
+              forceTokenOnly
+            />
+            <TokenControl
+              label="Padding Y"
+              value={currentStateTokens.spacing?.paddingY ?? spec.baseTokens.spacing?.paddingY}
+              onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { paddingY: v }) })}
+              options={spaceOptions}
+              resolveValue={toConcrete}
+              placeholder="space.2"
+              kind="number"
+              defaultValue={getDefaultValue("baseTokens.spacing.paddingY")}
+              forceTokenOnly
+            />
+            <TokenControl
+              label="Gap"
+              value={currentStateTokens.spacing?.gap ?? spec.baseTokens.spacing?.gap}
+              onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { gap: v }) })}
+              options={spaceOptions}
+              resolveValue={toConcrete}
+              placeholder="space.2"
+              kind="number"
+              defaultValue={getDefaultValue("baseTokens.spacing.gap")}
+              forceTokenOnly
+              disabled={!gapAllowed}
+            />
+            {componentId === "list-item" && (
+              <>
+                <TokenControl
+                  label="Stack gap (vertical)"
+                  value={currentStateTokens.layout?.stackGap ?? spec.baseTokens.layout?.stackGap}
+                  onChange={(v) => updateSelected({ layout: mergePart(currentStateTokens.layout, { stackGap: v }) })}
+                  options={spaceOptions}
+                  resolveValue={toConcrete}
+                  placeholder="space.2"
+                  kind="number"
+                  defaultValue={getDefaultValue("baseTokens.layout.stackGap")}
+                  forceTokenOnly
+                />
+              </>
+            )}
+            <TokenControl
+              label="Direction"
+              value={currentStateTokens.layout?.direction ?? spec.baseTokens.layout?.direction}
+              onChange={(v) => updateSelected({ layout: mergePart(currentStateTokens.layout, { direction: v }) })}
+              options={directionOptions}
+              placeholder="row | column"
+              defaultValue={getDefaultValue("baseTokens.layout.direction")}
+              allowLiteral={false}
+            />
           </div>
-        </div>
-      </div>
-      <div style={controlGridFlat}> 
-        <div style={controlGroup}>
-          <div style={groupLabel}>Layout</div>
-          <TokenControl
-            label="Padding X"
-            value={currentStateTokens.spacing?.paddingX ?? spec.baseTokens.spacing?.paddingX}
-            onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { paddingX: v }) })}
-            options={spaceOptions}
-            resolveValue={toConcrete}
-            placeholder="space.3"
-            kind="number"
-            defaultValue={getDefaultValue("baseTokens.spacing.paddingX")}
-            forceTokenOnly
-          />
-          <TokenControl
-            label="Padding Y"
-            value={currentStateTokens.spacing?.paddingY ?? spec.baseTokens.spacing?.paddingY}
-            onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { paddingY: v }) })}
-            options={spaceOptions}
-            resolveValue={toConcrete}
-            placeholder="space.2"
-            kind="number"
-            defaultValue={getDefaultValue("baseTokens.spacing.paddingY")}
-            forceTokenOnly
-          />
-          <TokenControl
-            label="Gap"
-            value={currentStateTokens.spacing?.gap ?? spec.baseTokens.spacing?.gap}
-            onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { gap: v }) })}
-            options={spaceOptions}
-            resolveValue={toConcrete}
-            placeholder="space.2"
-            kind="number"
-            defaultValue={getDefaultValue("baseTokens.spacing.gap")}
-            forceTokenOnly
-            disabled={!gapAllowed}
-          />
-          <TokenControl
-            label="Direction"
-            value={currentStateTokens.layout?.direction ?? spec.baseTokens.layout?.direction}
-            onChange={(v) => updateSelected({ layout: mergePart(currentStateTokens.layout, { direction: v }) })}
-            options={directionOptions}
-            placeholder="row | column"
-            defaultValue={getDefaultValue("baseTokens.layout.direction")}
-            allowLiteral={false}
-          />
-        </div>
+        </details>
 
-        <div style={controlGroup}>
-          <div style={groupLabel}>Color</div>
-          <TokenControl
-            label="Foreground"
-            value={currentStateTokens.color?.fg ?? spec.baseTokens.color?.fg}
-            onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { fg: v }) })}
-            options={colorOptions}
-            resolveValue={toConcrete}
-            placeholder="color.text.primary"
-            defaultValue={getDefaultValue("baseTokens.color.fg")}
-          />
-          <TokenControl
-            label="Background"
-            value={currentStateTokens.color?.bg ?? spec.baseTokens.color?.bg}
-            onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { bg: v }) })}
-            options={colorOptions}
-            resolveValue={toConcrete}
-            placeholder="color.surface.elevated"
-            defaultValue={getDefaultValue("baseTokens.color.bg")}
-          />
-          <TokenControl
-            label="Border"
-            value={currentStateTokens.color?.border ?? spec.baseTokens.color?.border}
-            onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { border: v }) })}
-            options={colorOptions}
-            resolveValue={toConcrete}
-            placeholder="color.border.default"
-            defaultValue={getDefaultValue("baseTokens.color.border")}
-          />
-        </div>
+        <details style={accordion}>
+          <summary style={accordionSummary}>
+            <span style={accordionTitle}>Color</span>
+          </summary>
+          <div style={accordionBody}>
+            <TokenControl
+              label="Text color"
+              value={currentStateTokens.color?.fg ?? spec.baseTokens.color?.fg}
+              onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { fg: v }) })}
+              options={colorOptions}
+              resolveValue={toConcrete}
+              placeholder="color.text.primary"
+              defaultValue={getDefaultValue("baseTokens.color.fg")}
+            />
+            <TokenControl
+              label="Background"
+              value={currentStateTokens.color?.bg ?? spec.baseTokens.color?.bg}
+              onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { bg: v }) })}
+              options={colorOptions}
+              resolveValue={toConcrete}
+              placeholder="color.surface.elevated"
+              defaultValue={getDefaultValue("baseTokens.color.bg")}
+            />
+            <TokenControl
+              label="Border"
+              value={currentStateTokens.color?.border ?? spec.baseTokens.color?.border}
+              onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { border: v }) })}
+              options={colorOptions}
+              resolveValue={toConcrete}
+              placeholder="color.border.default"
+              defaultValue={getDefaultValue("baseTokens.color.border")}
+            />
+          </div>
+        </details>
 
-        <div style={controlGroup}>
-          <div style={groupLabel}>Type</div>
-          <TokenControl
-            label="Font family"
-            value={currentStateTokens.typography?.fontFamily ?? spec.baseTokens.typography?.fontFamily ?? fontFamilyOptions[0]?.value}
-            onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { fontFamily: v }) })}
-            options={fontFamilyOptions}
-            resolveValue={toConcrete}
-            placeholder="Font family"
-            defaultValue={getDefaultValue("baseTokens.typography.fontFamily")}
-          />
-          <TokenControl
-            label="Size"
-            value={currentStateTokens.typography?.size ?? spec.baseTokens.typography?.size}
-            onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { size: v }) })}
-            options={fontSizeOptions}
-            resolveValue={toConcrete}
-            placeholder="font.size.2"
-            defaultValue={getDefaultValue("baseTokens.typography.size")}
-            forceTokenOnly
-          />
-          <TokenControl
-            label="Line height"
-            value={currentStateTokens.typography?.lineHeight ?? spec.baseTokens.typography?.lineHeight}
-            onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { lineHeight: v }) })}
-            options={lineHeightOptions}
-            resolveValue={toConcrete}
-            placeholder="lineHeight.normal"
-            defaultValue={getDefaultValue("baseTokens.typography.lineHeight")}
-            forceTokenOnly
-          />
-          <TokenControl
-            label="Weight"
-            value={currentStateTokens.typography?.weight ?? spec.baseTokens.typography?.weight}
-            onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { weight: v }) })}
-            options={weightOptions}
-            resolveValue={toConcrete}
-            placeholder="weight.regular"
-            defaultValue={getDefaultValue("baseTokens.typography.weight")}
-            forceTokenOnly
-          />
-        </div>
+        <details style={accordion}>
+          <summary style={accordionSummary}>
+            <span style={accordionTitle}>Type</span>
+          </summary>
+          <div style={accordionBody}>
+            <TokenControl
+              label="Font family"
+              value={currentStateTokens.typography?.fontFamily ?? spec.baseTokens.typography?.fontFamily ?? fontFamilyOptions[0]?.value}
+              onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { fontFamily: v }) })}
+              options={fontFamilyOptions}
+              resolveValue={toConcrete}
+              placeholder="Font family"
+              defaultValue={getDefaultValue("baseTokens.typography.fontFamily")}
+            />
+            <TokenControl
+              label="Size"
+              value={currentStateTokens.typography?.size ?? spec.baseTokens.typography?.size}
+              onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { size: v }) })}
+              options={fontSizeOptions}
+              resolveValue={toConcrete}
+              placeholder="font.size.2"
+              defaultValue={getDefaultValue("baseTokens.typography.size")}
+              forceTokenOnly
+            />
+            <TokenControl
+              label="Line height"
+              value={currentStateTokens.typography?.lineHeight ?? spec.baseTokens.typography?.lineHeight}
+              onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { lineHeight: v }) })}
+              options={lineHeightOptions}
+              resolveValue={toConcrete}
+              placeholder="lineHeight.normal"
+              defaultValue={getDefaultValue("baseTokens.typography.lineHeight")}
+              forceTokenOnly
+            />
+            <TokenControl
+              label="Weight"
+              value={currentStateTokens.typography?.weight ?? spec.baseTokens.typography?.weight}
+              onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { weight: v }) })}
+              options={weightOptions}
+              resolveValue={toConcrete}
+              placeholder="weight.regular"
+              defaultValue={getDefaultValue("baseTokens.typography.weight")}
+              forceTokenOnly
+            />
+          </div>
+        </details>
 
-        <div style={controlGroup}>
-          <div style={groupLabel}>Shape</div>
-          <TokenControl
-            label="Radius"
-            value={currentStateTokens.radius ?? spec.baseTokens.radius}
-            onChange={(v) => updateSelected({ radius: v })}
-            options={radiusOptions}
-            resolveValue={toConcrete}
-            placeholder="radius.md"
-            kind="number"
-            defaultValue={getDefaultValue("baseTokens.radius")}
-            forceTokenOnly
-          />
-          <TokenControl
-            label="Shadow"
-            value={currentStateTokens.shadow ?? spec.baseTokens.shadow}
-            onChange={(v) => updateSelected({ shadow: v })}
-            options={shadowOptions}
-            resolveValue={toConcrete}
-            placeholder="shadow.sm"
-            defaultValue={getDefaultValue("baseTokens.shadow")}
-            forceTokenOnly
-          />
-          <TokenControl
-            label="Border width"
-            value={currentStateTokens.border?.width ?? spec.baseTokens.border?.width ?? "1px"}
-            allowLiteral
-            resolveValue={toConcrete}
-            placeholder="1"
-            kind="number"
-            defaultValue={getDefaultValue("baseTokens.border.width")}
-            onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { width: v }) })}
-            numberUnit="px"
-          />
-          <TokenControl
-            label="Border style"
-            value={currentStateTokens.border?.style ?? spec.baseTokens.border?.style ?? "solid"}
-            onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { style: v }) })}
-            options={borderStyleOptions}
-            resolveValue={toConcrete}
-            placeholder="solid"
-            defaultValue={getDefaultValue("baseTokens.border.style")}
-            allowLiteral={false}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderStateGroup = () => (
-    <div style={controlSectionFlat}>
-      <div style={sectionHeaderFlat}>
-        <div>
-          <div style={sectionTitleFlat}>State intent</div>
-          <div style={mutedSmall}>Interactive states: Override colors and styles for hover, focus, disabled, etc.</div>
-        </div>
-      </div>
-      <div style={{ display: "grid", gap: 16 }}>
-        {coreStates.map((stateKey) => renderStateBlock(stateKey))}
-        {secondaryStates.length > 0 && (
-          <details style={nestedDetailsFlat}>
-            <summary style={summaryRowFlat}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>Advanced states ({secondaryStates.length})</span>
-            </summary>
-            <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-              {secondaryStates.map((stateKey) => renderStateBlock(stateKey))}
-            </div>
-          </details>
-        )}
+        <details style={accordion}>
+          <summary style={accordionSummary}>
+            <span style={accordionTitle}>Shape</span>
+          </summary>
+          <div style={accordionBody}>
+            {componentId === "list-item" ? (
+              <>
+                <TokenControl
+                  label="Radius"
+                  value={currentStateTokens.radius ?? spec.baseTokens.radius}
+                  onChange={(v) => updateSelected({ radius: v })}
+                  options={radiusOptions}
+                  resolveValue={toConcrete}
+                  placeholder="radius.md"
+                  kind="number"
+                  defaultValue={getDefaultValue("baseTokens.radius")}
+                  forceTokenOnly
+                />
+                <TokenControl
+                  label="Shadow"
+                  value={currentStateTokens.shadow ?? spec.baseTokens.shadow}
+                  onChange={(v) => updateSelected({ shadow: v })}
+                  options={shadowOptions}
+                  resolveValue={toConcrete}
+                  placeholder="shadow.sm"
+                  defaultValue={getDefaultValue("baseTokens.shadow")}
+                  forceTokenOnly
+                />
+                <TokenControl
+                  label="Border width"
+                  value={currentStateTokens.border?.width ?? spec.baseTokens.border?.width ?? "1px"}
+                  allowLiteral
+                  resolveValue={toConcrete}
+                  placeholder="1"
+                  kind="number"
+                  defaultValue={getDefaultValue("baseTokens.border.width")}
+                  onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { width: v }) })}
+                  numberUnit="px"
+                />
+                <TokenControl
+                  label="Border style"
+                  value={currentStateTokens.border?.style ?? spec.baseTokens.border?.style ?? "solid"}
+                  onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { style: v }) })}
+                  options={borderStyleOptions}
+                  resolveValue={toConcrete}
+                  placeholder="solid"
+                  defaultValue={getDefaultValue("baseTokens.border.style")}
+                  allowLiteral={false}
+                />
+                <TokenControl
+                  label="Divider color"
+                  value={currentStateTokens.layout?.dividerColor ?? spec.baseTokens.layout?.dividerColor}
+                  onChange={(v) => updateSelected({ layout: mergePart(currentStateTokens.layout, { dividerColor: v }) })}
+                  options={colorOptions}
+                  resolveValue={toConcrete}
+                  placeholder="color.border.subtle"
+                  defaultValue={getDefaultValue("baseTokens.layout.dividerColor")}
+                />
+                <label style={toggleRow}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentStateTokens.layout?.showDivider ?? spec.baseTokens.layout?.showDivider)}
+                    onChange={(e) => updateSelected({ layout: mergePart(currentStateTokens.layout, { showDivider: e.target.checked }) })}
+                  />
+                  <span>Show divider between items</span>
+                </label>
+                <div style={{ height: 16 }} />
+              </>
+            ) : (
+              <>
+                <TokenControl
+                  label="Radius"
+                  value={currentStateTokens.radius ?? spec.baseTokens.radius}
+                  onChange={(v) => updateSelected({ radius: v })}
+                  options={radiusOptions}
+                  resolveValue={toConcrete}
+                  placeholder="radius.md"
+                  kind="number"
+                  defaultValue={getDefaultValue("baseTokens.radius")}
+                  forceTokenOnly
+                />
+                <TokenControl
+                  label="Shadow"
+                  value={currentStateTokens.shadow ?? spec.baseTokens.shadow}
+                  onChange={(v) => updateSelected({ shadow: v })}
+                  options={shadowOptions}
+                  resolveValue={toConcrete}
+                  placeholder="shadow.sm"
+                  defaultValue={getDefaultValue("baseTokens.shadow")}
+                  forceTokenOnly
+                />
+                <TokenControl
+                  label="Border style"
+                  value={currentStateTokens.border?.style ?? spec.baseTokens.border?.style ?? "solid"}
+                  onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { style: v }) })}
+                  options={borderStyleOptions}
+                  resolveValue={toConcrete}
+                  placeholder="solid"
+                  defaultValue={getDefaultValue("baseTokens.border.style")}
+                  allowLiteral={false}
+                />
+                <TokenControl
+                  label="Border width"
+                  value={currentStateTokens.border?.width ?? spec.baseTokens.border?.width ?? "1px"}
+                  allowLiteral
+                  resolveValue={toConcrete}
+                  placeholder="1"
+                  kind="number"
+                  defaultValue={getDefaultValue("baseTokens.border.width")}
+                  onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { width: v }) })}
+                  numberUnit="px"
+                />
+              </>
+            )}
+          </div>
+        </details>
       </div>
     </div>
   );
@@ -678,28 +756,19 @@ export const ComponentPage = ({ componentId }: Props) => {
   const baselineMerged = mergeTokens(spec.baseTokens, spec.states?.default, inverseTokensPatch);
   const baselineStyle = tokensToStyle(snapshot, baselineMerged);
 
-  const stateTone = (stateKey: string, style: CSSProperties) => {
-    const bg = (style.backgroundColor as string) || "var(--surface-alt)";
-    const borderColor = (style.borderColor as string) || "var(--border)";
-    const textColor = (style.color as string) || "#0f172a";
-    const chipBg = "rgba(0,0,0,0.06)";
-
-    // Disabled gets a muted surface to reflect disabled intent without inventing a new palette
-    if (stateKey === "disabled") {
-      return {
-        cardBg: bg,
-        surfaceBg: bg,
-        borderColor,
-        chip: { background: "rgba(148, 163, 184, 0.25)", color: "#475569" },
-        glow: "0 0 0 0 rgba(0,0,0,0)"
-      };
-    }
+  const stateTone = (stateKey: string) => {
+    // Keep the presentation frame neutral so token edits only affect the component itself.
+    const cardBg = "var(--surface)";
+    const surfaceBg = "#ffffff";
+    const chip = stateKey === "disabled"
+      ? { background: "rgba(148, 163, 184, 0.25)", color: "#475569" }
+      : { background: "rgba(0,0,0,0.06)", color: "#0f172a" };
 
     return {
-      cardBg: bg,
-      surfaceBg: bg,
-      borderColor,
-      chip: { background: chipBg, color: textColor },
+      cardBg,
+      surfaceBg,
+      borderColor: "transparent",
+      chip,
       glow: "var(--shadow-sm)"
     };
   };
@@ -759,7 +828,7 @@ export const ComponentPage = ({ componentId }: Props) => {
             const style = tokensToStyle(snapshot, merged);
             const isActive = selectedState === stateKey;
             const showGhost = false;
-            const tone = stateTone(stateKey, style);
+            const tone = stateTone(stateKey);
             const inherits = !stateTokens;
             const loadingPreset = merged.motion?.loadingPreset ?? snapshot.globals.motion.loading?.defaultPreset ?? "skeleton";
 
@@ -792,12 +861,12 @@ export const ComponentPage = ({ componentId }: Props) => {
                 <div style={{ ...statePreviewSurface, background: tone.surfaceBg, borderColor: tone.borderColor }}>
                   {showGhost && (
                     <div style={ghostLayer}>
-                      <PreviewExample componentId={spec.id} style={{ ...baselineStyle, opacity: 0.4 }} snapshot={snapshot} stateKey="default" inverseSurface={inversePreview} loadingPreset={loadingPreset} />
+                      <PreviewExample componentId={spec.id} style={{ ...baselineStyle, opacity: 0.4 }} snapshot={snapshot} stateKey="default" inverseSurface={inversePreview} loadingPreset={loadingPreset} layout={merged.layout} />
                       <span style={ghostLabel}>Default</span>
                     </div>
                   )}
-                  <div style={{ ...previewAnim, transform: isActive ? "scale(1.02)" : "scale(0.98)", transition: "transform 180ms ease, opacity 200ms ease" }}>
-                    <PreviewExample componentId={spec.id} style={style} snapshot={snapshot} stateKey={stateKey} inverseSurface={inversePreview} loadingPreset={loadingPreset} />
+                    <div style={{ ...previewAnim, transform: isActive ? "scale(1.02)" : "scale(0.98)", transition: "transform 180ms ease, opacity 200ms ease" }}>
+                      <PreviewExample componentId={spec.id} style={style} snapshot={snapshot} stateKey={stateKey} inverseSurface={inversePreview} loadingPreset={loadingPreset} layout={merged.layout} />
                   </div>
                 </div>
               </div>
@@ -851,9 +920,8 @@ export const ComponentPage = ({ componentId }: Props) => {
               <div style={sectionTitleFlat}>Controls</div>
             </div>
           </div>
-          <div style={{ display: "grid", gap: 32, marginTop: 24 }}>
+          <div style={{ display: "grid", gap: 24, marginTop: 12 }}>
             {renderBaseGroup()}
-            {renderStateGroup()}
           </div>
         </div>
       </div>
@@ -872,7 +940,7 @@ const fallbackLoadingPresets = {
   "orbit-dots": { kind: "orbit-dots" }
 } as const;
 
-type PreviewProps = { componentId: string; style?: CSSProperties; snapshot: DesignSystemSnapshot; stateKey?: string; inverseSurface?: boolean; loadingPreset?: string };
+type PreviewProps = { componentId: string; style?: CSSProperties; snapshot: DesignSystemSnapshot; stateKey?: string; inverseSurface?: boolean; loadingPreset?: string; layout?: ComponentTokens["layout"] };
 
 const resolveLoadingPreset = (snapshot: DesignSystemSnapshot, presetId?: string) => {
   const motion = snapshot.globals.motion.loading;
@@ -1057,7 +1125,7 @@ const LoadingPresetPreview = ({ snapshot, presetId }: { snapshot: DesignSystemSn
   }
 };
 
-const PreviewExample = ({ componentId, style, snapshot, stateKey, inverseSurface, loadingPreset }: PreviewProps) => {
+const PreviewExample = ({ componentId, style, snapshot, stateKey, inverseSurface, loadingPreset, layout }: PreviewProps) => {
   const gapAllowed = gapSupportedComponents.has(componentId);
 
   if (stateKey === "loading") {
@@ -1274,16 +1342,19 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey, inverseSurface
     }
     case "list-item": {
       const { container, rest } = splitGap(style);
+      const stackGap = layout?.stackGap ? resolvePath(snapshot, layout.stackGap) ?? layout.stackGap : undefined;
+      const showDivider = Boolean(layout?.showDivider);
+      const dividerColor = layout?.dividerColor ? resolvePath(snapshot, layout.dividerColor) ?? layout.dividerColor : snapshot.globals.color.border.subtle;
       return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 0, width: "100%" }}>
-          <div style={{ ...listRow, ...rest, ...container }}>
+        <div style={{ display: "grid", gap: stackGap ?? "12px", width: "100%" }}>
+          <div style={{ ...listRow, ...rest, ...container, borderBottom: showDivider ? `1px solid ${dividerColor}` : "none", paddingBottom: showDivider ? 10 : listRow.padding }}>
             <div style={{ ...avatarCircle, width: 36, height: 36 }} />
             <div>
               <div style={{ fontWeight: 700 }}>First item title</div>
               <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Secondary line</div>
             </div>
           </div>
-          <div style={{ ...listRow, ...rest, ...container, opacity: 0.5 }}>
+          <div style={{ ...listRow, ...rest, ...container, opacity: 0.5, borderBottom: showDivider ? `1px solid ${dividerColor}` : "none", paddingBottom: showDivider ? 10 : listRow.padding }}>
             <div style={{ ...avatarCircle, width: 36, height: 36 }} />
             <div>
               <div style={{ fontWeight: 700 }}>Second item</div>
@@ -1373,7 +1444,7 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey, inverseSurface
 
 const pageGrid: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "260px 1fr",
+  gridTemplateColumns: "460px 1fr",
   gap: 12,
   height: "100%",
   padding: 12
@@ -1390,9 +1461,10 @@ const leftRail: CSSProperties = {
 
 const rightColumn: CSSProperties = {
   display: "grid",
-  gridTemplateRows: "auto 1fr",
-  gap: 10,
-  minHeight: 0
+  gridTemplateRows: "auto auto",
+  gap: 12,
+  minHeight: 0,
+  alignContent: "start"
 };
 
 const topRow: CSSProperties = {
@@ -1400,7 +1472,7 @@ const topRow: CSSProperties = {
 };
 
 const bottomRow: CSSProperties = {
-  paddingTop: 8,
+  paddingTop: 0,
   display: "grid",
   gap: 10,
   minHeight: 0
@@ -1410,10 +1482,10 @@ const visualSection: CSSProperties = {
   background: "var(--surface-alt)",
   border: "1px solid var(--border)",
   borderRadius: 16,
-  padding: 12,
+  padding: "20px 16px",
   boxShadow: "var(--shadow-sm)",
   display: "grid",
-  gap: 10,
+  gap: 12,
   minHeight: 0
 };
 
@@ -1430,12 +1502,12 @@ const stateStrip: CSSProperties = {
   gap: 10,
   overflowX: "auto",
   paddingBottom: 4,
-  paddingTop: 2,
+  paddingTop: 20,
   paddingLeft: 6
 };
 
 const statePill: CSSProperties = {
-  border: "1px solid var(--border)",
+  border: "none",
   borderRadius: 14,
   padding: 10,
   background: "var(--surface)",
@@ -1458,9 +1530,9 @@ const statePreviewSurface: CSSProperties = {
   position: "relative",
   borderRadius: 12,
   padding: 12,
-  background: "var(--surface-alt)",
+  background: "#ffffff",
   minHeight: 60,
-  border: "1px dashed var(--border)",
+  border: "none",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1559,6 +1631,41 @@ const groupLabel: CSSProperties = {
   marginBottom: 4
 };
 
+const accordion: CSSProperties = {
+  border: "none",
+  borderRadius: 12,
+  background: "rgba(20, 106, 56, 0.7)",
+  padding: "12px 16px 18px"
+};
+
+const accordionSummary: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  cursor: "pointer",
+  padding: "8px 4px",
+  listStyle: "none",
+  color: "#fff"
+};
+
+const accordionTitle: CSSProperties = {
+  fontWeight: 750,
+  fontSize: 14,
+  color: "#fff"
+};
+
+const accordionBody: CSSProperties = {
+  padding: "12px 12px 16px",
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gap: 12,
+  background: "#fff",
+  color: "var(--text)",
+  borderRadius: 10,
+  paddingLeft: 12,
+  paddingRight: 12
+};
+
 const nestedDetailsFlat: CSSProperties = {
   marginTop: 8,
   paddingTop: 16,
@@ -1575,7 +1682,7 @@ const summaryRowFlat: CSSProperties = {
 
 const sectionDivider: CSSProperties = {
   borderTop: "1px solid var(--border)",
-  margin: "4px 0"
+  margin: "8px 0"
 };
 
 const summaryRow: CSSProperties = {
@@ -1670,7 +1777,7 @@ const tokenRow: CSSProperties = {
   gap: 6,
   padding: 6,
   borderRadius: 10,
-  border: "1px solid var(--border)",
+  border: "none",
   background: "var(--surface-alt)",
   minHeight: 0
 };

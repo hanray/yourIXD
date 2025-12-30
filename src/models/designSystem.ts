@@ -168,6 +168,9 @@ export type ComponentTokens = {
     minWidth?: string;
     maxWidth?: string;
     direction?: string;
+    stackGap?: string;
+    showDivider?: boolean;
+    dividerColor?: string;
   };
 };
 
