@@ -36,16 +36,56 @@ const resolvePath = (snapshot: DesignSystemSnapshot, ref?: string) => {
 };
 
 const tokensToStyle = (snapshot: DesignSystemSnapshot, tokens: ComponentTokens) => {
+  const resolveFontSize = (val?: string) => {
+    if (!val) return undefined;
+    const direct = resolvePath(snapshot, val);
+    if (direct && (val.includes(".") || direct !== val)) return direct;
+    const sizeMap = snapshot.globals.font.size as Record<string, string>;
+    if (val in sizeMap) return sizeMap[val];
+    return val;
+  };
+
+  const resolveFontFamily = (val?: string) => {
+    if (!val) return snapshot.globals.font.family.sans;
+    const direct = resolvePath(snapshot, val);
+    if (direct && (val.includes(".") || direct !== val)) return direct;
+    return val;
+  };
+
+  const resolveRadius = (val?: string) => {
+    if (!val) return undefined;
+    const direct = resolvePath(snapshot, val);
+    if (direct && (val.includes(".") || direct !== val)) return direct;
+    const radiusMap = snapshot.globals.radius as Record<string, string>;
+    if (val in radiusMap) return radiusMap[val];
+    return val;
+  };
+
+  const resolveShadow = (val?: string) => {
+    if (!val) return undefined;
+    const direct = resolvePath(snapshot, val);
+    if (direct && (val.includes(".") || direct !== val)) return direct;
+    const shadowMap = snapshot.globals.shadow as Record<string, string>;
+    if (val in shadowMap) return shadowMap[val];
+    return val;
+  };
+
   const fg = resolvePath(snapshot, tokens.color?.fg);
   const bg = resolvePath(snapshot, tokens.color?.bg);
   const resolvedBorderColor = resolvePath(snapshot, tokens.color?.border);
   const paddingX = resolvePath(snapshot, tokens.spacing?.paddingX);
   const paddingY = resolvePath(snapshot, tokens.spacing?.paddingY);
-  const radius = resolvePath(snapshot, tokens.radius);
-  const shadow = resolvePath(snapshot, tokens.shadow);
+  const gap = resolvePath(snapshot, tokens.spacing?.gap);
+  const radius = resolveRadius(tokens.radius);
+  const shadow = resolveShadow(tokens.shadow);
   const resolvedBorderWidth = resolvePath(snapshot, tokens.border?.width) ?? tokens.border?.width;
   const resolvedBorderStyle = tokens.border?.style ?? (resolvedBorderColor ? "solid" : undefined);
   const typography = tokens.typography ?? {};
+  const direction = resolvePath(snapshot, tokens.layout?.direction) ?? tokens.layout?.direction;
+  const flexDirection = direction as CSSProperties["flexDirection"] | undefined;
+  const resolvedDuration = resolvePath(snapshot, tokens.motion?.duration) ?? snapshot.globals.motion.duration.normal;
+  const resolvedEasing = resolvePath(snapshot, tokens.motion?.easing) ?? snapshot.globals.motion.easing.standard;
+  const resolvedTransition = tokens.motion?.transition ?? (resolvedDuration && resolvedEasing ? `all ${resolvedDuration} ${resolvedEasing}` : undefined);
 
   const hasValue = (val: any) => val !== undefined && val !== null && !(typeof val === "string" && val.trim() === "");
 
@@ -55,15 +95,18 @@ const tokensToStyle = (snapshot: DesignSystemSnapshot, tokens: ComponentTokens) 
     boxShadow: shadow,
     borderRadius: radius,
     padding: hasValue(paddingX) && hasValue(paddingY) ? `${paddingY} ${paddingX}` : undefined,
+    gap,
     borderColor: resolvedBorderColor,
     borderWidth: resolvedBorderColor ? resolvedBorderWidth ?? "1px" : undefined,
     borderStyle: resolvedBorderColor ? resolvedBorderStyle ?? "solid" : undefined,
-    fontSize: resolvePath(snapshot, typography.size),
+    fontSize: resolveFontSize(typography.size),
     fontWeight: typography.weight ? Number(resolvePath(snapshot, typography.weight)) || typography.weight : undefined,
     letterSpacing: resolvePath(snapshot, typography.letterSpacing),
     lineHeight: resolvePath(snapshot, typography.lineHeight),
-    fontFamily: typography.fontFamily ?? snapshot.globals.font.family.sans,
-    transition: tokens.motion?.transition,
+    fontFamily: resolveFontFamily(typography.fontFamily),
+    transition: resolvedTransition,
+    flexDirection,
+    display: flexDirection ? "flex" : undefined,
     minWidth: tokens.layout?.minWidth,
     maxWidth: tokens.layout?.maxWidth
   };
@@ -104,6 +147,7 @@ type TokenControlProps = {
   forceTokenOnly?: boolean;
   allowLiteral?: boolean;
   numberUnit?: "px";
+  disabled?: boolean;
 };
 
 const TokenControl = ({
@@ -118,7 +162,8 @@ const TokenControl = ({
   step = 1,
   forceTokenOnly = false,
   allowLiteral = true,
-  numberUnit
+  numberUnit,
+  disabled = false
 }: TokenControlProps) => {
   const [localValue, setLocalValue] = useState<string>(value ?? "");
   const resolved = resolveValue ? resolveValue(value) : value;
@@ -155,6 +200,7 @@ const TokenControl = ({
             style={selectStyle}
             value={localValue === "" ? "__placeholder" : localValue}
             onChange={(e) => handleChange(e.target.value === "__placeholder" ? "" : e.target.value)}
+            disabled={disabled}
           >
             <option value="__placeholder" disabled>
               {placeholder ?? "Choose a token"}
@@ -165,7 +211,7 @@ const TokenControl = ({
               </option>
             ))}
           </select>
-          <div style={helperText}>Expected tokens like: {options?.slice(0, 3).map((o) => o.value).join(", ")}{(options?.length ?? 0) > 3 ? " …" : ""}</div>
+          <div style={helperText}>Expected tokens like: {options?.slice(0, 3).map((o) => o.value).join(", ")}{(options?.length ?? 0) > 3 ? " ..." : ""}</div>
         </div>
       ) : canUseInput ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -180,6 +226,7 @@ const TokenControl = ({
             placeholder={placeholder ?? "e.g. 12"}
             type={kind === "number" ? "number" : "text"}
             step={step}
+            disabled={disabled}
           />
           {numberUnit === "px" && <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>px</span>}
           {defaultValue && (
@@ -189,11 +236,30 @@ const TokenControl = ({
           )}
         </div>
       ) : (
-        <div style={helperText}>No tokens available · Expected something like {placeholder ?? "a token path (e.g. color.text.primary)"}</div>
+        <div style={helperText}>No tokens available - Expected something like {placeholder ?? "a token path (e.g. color.text.primary)"}</div>
       )}
     </label>
   );
 };
+
+const gapSupportedComponents = new Set([
+  "button",
+  "checkbox",
+  "radio",
+  "toggle",
+  "avatar",
+  "badge",
+  "toast",
+  "navbar",
+  "footer",
+  "tabs",
+  "dropdown",
+  "select",
+  "list-item",
+  "modal",
+  "table",
+  "card"
+]);
 
 export const ComponentPage = ({ componentId }: Props) => {
   const snapshot = useDesignSystem((s) => s.snapshot);
@@ -204,6 +270,9 @@ export const ComponentPage = ({ componentId }: Props) => {
   const [flashKey, setFlashKey] = useState(0);
   const [selectedState, setSelectedState] = useState<string>("default");
   const [compareDefault, setCompareDefault] = useState<boolean>(false);
+  const [inversePreview, setInversePreview] = useState<boolean>(false);
+  const [showAllStates, setShowAllStates] = useState<boolean>(false);
+  const gapAllowed = gapSupportedComponents.has(spec?.id ?? componentId);
 
   useEffect(() => {
     setFlashKey((k) => k + 1);
@@ -229,7 +298,7 @@ export const ComponentPage = ({ componentId }: Props) => {
       <div key={stateKey} style={stateControlCard}>
         <div style={subSectionHeader}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontWeight: 700 }}>State · {stateKey}</span>
+            <span style={{ fontWeight: 700 }}>State - {stateKey}</span>
           </div>
           {stateKey !== "default" && (
             <button style={ghostButton} onClick={() => setSelectedState(stateKey)}>
@@ -275,38 +344,106 @@ export const ComponentPage = ({ componentId }: Props) => {
             defaultValue={getDefaultValue(`states.${stateKey}.shadow`)}
             forceTokenOnly
           />
+          <TokenControl
+            label="Direction"
+            value={tokens.layout?.direction}
+            onChange={(v) => pushUpdate({ layout: mergePart(tokens.layout, { direction: v }) })}
+            options={directionOptions}
+            placeholder="row | column"
+            defaultValue={getDefaultValue(`states.${stateKey}.layout.direction`)}
+            allowLiteral={false}
+          />
+          {stateKey === "loading" && (
+            <label style={tokenRow}>
+              <div style={tokenHeader}>
+                <span style={{ fontWeight: 650 }}>Loading preset</span>
+              </div>
+              <select
+                style={selectStyle}
+                value={tokens.motion?.loadingPreset ?? ""}
+                onChange={(e) => pushUpdate({ motion: mergePart(tokens.motion, { loadingPreset: e.target.value }) })}
+              >
+                <option value="">Use theme default ({snapshot.globals.motion.loading?.defaultPreset || "skeleton"})</option>
+                {loadingPresetOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </div>
     );
   };
 
   const colorOptions = useMemo(() => flattenTokenOptions(snapshot.globals.color, ["color"]), [snapshot.globals.color]);
-  const spaceOptions = useMemo(() => flattenTokenOptions(snapshot.globals.space), [snapshot.globals.space]);
-  const radiusOptions = useMemo(() => flattenTokenOptions(snapshot.globals.radius), [snapshot.globals.radius]);
-  const shadowOptions = useMemo(() => flattenTokenOptions(snapshot.globals.shadow), [snapshot.globals.shadow]);
-  const fontSizeOptions = useMemo(() => flattenTokenOptions(snapshot.globals.font.size), [snapshot.globals.font.size]);
-  const lineHeightOptions = useMemo(() => flattenTokenOptions(snapshot.globals.lineHeight), [snapshot.globals.lineHeight]);
-  const weightOptions = useMemo(() => flattenTokenOptions(snapshot.globals.weight), [snapshot.globals.weight]);
-  const fontFamilyOptions = useMemo(
-    () => [
-      { label: snapshot.globals.font.family.sans, value: snapshot.globals.font.family.sans },
-      { label: snapshot.globals.font.family.serif, value: snapshot.globals.font.family.serif },
-      { label: snapshot.globals.font.family.mono, value: snapshot.globals.font.family.mono },
-      ...(snapshot.globals.font.web
-        ? [{ label: snapshot.globals.font.web.family, value: snapshot.globals.font.web.family }]
-        : [])
-    ],
-    [snapshot.globals.font.family, snapshot.globals.font.web]
+
+  const spaceOptions = useMemo(() => {
+    const opts = flattenTokenOptions(snapshot.globals.space, ["space"]);
+    return opts.map((opt) => {
+      const resolved = resolvePath(snapshot, opt.value);
+      const suffix = resolved && resolved !== opt.value ? ` · ${resolved}` : "";
+      return { label: `${opt.value}${suffix}`, value: opt.value };
+    });
+  }, [snapshot, snapshot.globals.space]);
+
+  const radiusOptions = useMemo(() => flattenTokenOptions(snapshot.globals.radius, ["radius"]), [snapshot.globals.radius]);
+  const shadowOptions = useMemo(() => flattenTokenOptions(snapshot.globals.shadow, ["shadow"]), [snapshot.globals.shadow]);
+  const loadingPresetOptions = useMemo(
+    () => Object.keys(snapshot.globals.motion.loading?.presets ?? fallbackLoadingPresets),
+    [snapshot.globals.motion.loading]
   );
 
+  const fontSizeOptions = useMemo(() => {
+    const options = flattenTokenOptions(snapshot.globals.font.size, ["font", "size"]);
+    return options.map((opt) => {
+      const resolved = resolvePath(snapshot, opt.value);
+      const suffix = resolved && resolved !== opt.value ? ` · ${resolved}` : "";
+      return { label: `${opt.value.split(".").pop()}${suffix}`, value: opt.value };
+    });
+  }, [snapshot, snapshot.globals.font.size]);
+
+  const lineHeightOptions = useMemo(() => flattenTokenOptions(snapshot.globals.lineHeight), [snapshot.globals.lineHeight]);
+  const weightOptions = useMemo(() => flattenTokenOptions(snapshot.globals.weight), [snapshot.globals.weight]);
+  const borderStyleOptions: Option[] = [
+    { label: "solid", value: "solid" },
+    { label: "dashed", value: "dashed" },
+    { label: "dotted", value: "dotted" },
+    { label: "double", value: "double" },
+    { label: "none", value: "none" },
+    { label: "groove", value: "groove" },
+    { label: "ridge", value: "ridge" },
+    { label: "inset", value: "inset" },
+    { label: "outset", value: "outset" }
+  ];
+  const fontFamilyOptions = useMemo(() => {
+    const primary = (val: string) => val.split(",")[0]?.replace(/["']/g, "").trim() || val;
+    const opts: Option[] = [
+      { label: primary(snapshot.globals.font.family.sans), value: "font.family.sans" },
+      { label: primary(snapshot.globals.font.family.serif), value: "font.family.serif" },
+      { label: primary(snapshot.globals.font.family.mono), value: "font.family.mono" }
+    ];
+    if (snapshot.globals.font.web?.family) {
+      opts.push({ label: snapshot.globals.font.web.family, value: "font.web.family" });
+    }
+    return opts;
+  }, [snapshot.globals.font.family, snapshot.globals.font.web?.family]);
+
+  const directionOptions: Option[] = [
+    { label: "Row", value: "row" },
+    { label: "Column", value: "column" },
+    { label: "Row reverse", value: "row-reverse" },
+    { label: "Column reverse", value: "column-reverse" }
+  ];
+
   const requiredStates = spec?.contract?.requiredStates ?? ["default"];
+  const allStates = ["All", ...requiredStates];
   const coreStates = ["default", "hover"].filter((s) => requiredStates.includes(s));
   const secondaryStates = requiredStates.filter((s) => !coreStates.includes(s));
 
-  const currentStateTokens = selectedState === "default" ? spec.baseTokens : spec.states?.[selectedState] ?? {};
+  const currentStateTokens = selectedState === "All" ? spec.baseTokens : spec.states?.[selectedState] ?? {};
 
   const updateSelected = (patch: ComponentTokens) => {
-    if (selectedState === "default") {
+    if (selectedState === "All") {
       update(componentId, "base", componentId, patch);
     } else {
       update(componentId, "state", selectedState, patch);
@@ -334,7 +471,11 @@ export const ComponentPage = ({ componentId }: Props) => {
       <summary style={summaryRow}>
         <div>
           <div style={sectionTitle}>Base intent</div>
-          <div style={muted}>Edits apply to the currently selected state: {selectedState}.</div>
+          <div style={muted}>
+            {selectedState === "All"
+              ? "Edits apply to ALL states (shared base tokens)."
+              : `Edits apply to the currently selected state: ${selectedState}.`}
+          </div>
         </div>
       </summary>
       <div style={controlGrid}> 
@@ -343,7 +484,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Padding X"
             value={currentStateTokens.spacing?.paddingX ?? spec.baseTokens.spacing?.paddingX}
-            onChange={(v) => updateSelected({ spacing: mergePart(spec.baseTokens.spacing, currentStateTokens.spacing, { paddingX: v }) })}
+            onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { paddingX: v }) })}
             options={spaceOptions}
             resolveValue={toConcrete}
             placeholder="space.3"
@@ -354,7 +495,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Padding Y"
             value={currentStateTokens.spacing?.paddingY ?? spec.baseTokens.spacing?.paddingY}
-            onChange={(v) => updateSelected({ spacing: mergePart(spec.baseTokens.spacing, currentStateTokens.spacing, { paddingY: v }) })}
+            onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { paddingY: v }) })}
             options={spaceOptions}
             resolveValue={toConcrete}
             placeholder="space.2"
@@ -365,13 +506,23 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Gap"
             value={currentStateTokens.spacing?.gap ?? spec.baseTokens.spacing?.gap}
-            onChange={(v) => updateSelected({ spacing: mergePart(spec.baseTokens.spacing, currentStateTokens.spacing, { gap: v }) })}
+            onChange={(v) => updateSelected({ spacing: mergePart(currentStateTokens.spacing, { gap: v }) })}
             options={spaceOptions}
             resolveValue={toConcrete}
             placeholder="space.2"
             kind="number"
             defaultValue={getDefaultValue("baseTokens.spacing.gap")}
             forceTokenOnly
+            disabled={!gapAllowed}
+          />
+          <TokenControl
+            label="Direction"
+            value={currentStateTokens.layout?.direction ?? spec.baseTokens.layout?.direction}
+            onChange={(v) => updateSelected({ layout: mergePart(currentStateTokens.layout, { direction: v }) })}
+            options={directionOptions}
+            placeholder="row | column"
+            defaultValue={getDefaultValue("baseTokens.layout.direction")}
+            allowLiteral={false}
           />
         </div>
 
@@ -380,7 +531,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Foreground"
             value={currentStateTokens.color?.fg ?? spec.baseTokens.color?.fg}
-            onChange={(v) => updateSelected({ color: mergePart(spec.baseTokens.color, currentStateTokens.color, { fg: v }) })}
+            onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { fg: v }) })}
             options={colorOptions}
             resolveValue={toConcrete}
             placeholder="color.text.primary"
@@ -389,7 +540,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Background"
             value={currentStateTokens.color?.bg ?? spec.baseTokens.color?.bg}
-            onChange={(v) => updateSelected({ color: mergePart(spec.baseTokens.color, currentStateTokens.color, { bg: v }) })}
+            onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { bg: v }) })}
             options={colorOptions}
             resolveValue={toConcrete}
             placeholder="color.surface.elevated"
@@ -398,7 +549,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Border"
             value={currentStateTokens.color?.border ?? spec.baseTokens.color?.border}
-            onChange={(v) => updateSelected({ color: mergePart(spec.baseTokens.color, currentStateTokens.color, { border: v }) })}
+            onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { border: v }) })}
             options={colorOptions}
             resolveValue={toConcrete}
             placeholder="color.border.default"
@@ -411,7 +562,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Font family"
             value={currentStateTokens.typography?.fontFamily ?? spec.baseTokens.typography?.fontFamily ?? fontFamilyOptions[0]?.value}
-            onChange={(v) => updateSelected({ typography: mergePart(spec.baseTokens.typography, currentStateTokens.typography, { fontFamily: v }) })}
+            onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { fontFamily: v }) })}
             options={fontFamilyOptions}
             resolveValue={toConcrete}
             placeholder="Font family"
@@ -420,7 +571,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Size"
             value={currentStateTokens.typography?.size ?? spec.baseTokens.typography?.size}
-            onChange={(v) => updateSelected({ typography: mergePart(spec.baseTokens.typography, currentStateTokens.typography, { size: v }) })}
+            onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { size: v }) })}
             options={fontSizeOptions}
             resolveValue={toConcrete}
             placeholder="font.size.2"
@@ -430,7 +581,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Line height"
             value={currentStateTokens.typography?.lineHeight ?? spec.baseTokens.typography?.lineHeight}
-            onChange={(v) => updateSelected({ typography: mergePart(spec.baseTokens.typography, currentStateTokens.typography, { lineHeight: v }) })}
+            onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { lineHeight: v }) })}
             options={lineHeightOptions}
             resolveValue={toConcrete}
             placeholder="lineHeight.normal"
@@ -440,7 +591,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Weight"
             value={currentStateTokens.typography?.weight ?? spec.baseTokens.typography?.weight}
-            onChange={(v) => updateSelected({ typography: mergePart(spec.baseTokens.typography, currentStateTokens.typography, { weight: v }) })}
+            onChange={(v) => updateSelected({ typography: mergePart(currentStateTokens.typography, { weight: v }) })}
             options={weightOptions}
             resolveValue={toConcrete}
             placeholder="weight.regular"
@@ -475,21 +626,23 @@ export const ComponentPage = ({ componentId }: Props) => {
           <TokenControl
             label="Border width"
             value={currentStateTokens.border?.width ?? spec.baseTokens.border?.width ?? "1px"}
-            onChange={(v) => updateSelected({ border: mergePart(spec.baseTokens.border, currentStateTokens.border, { width: v }) })}
+            allowLiteral
             resolveValue={toConcrete}
             placeholder="1"
             kind="number"
             defaultValue={getDefaultValue("baseTokens.border.width")}
-            allowLiteral
+            onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { width: v }) })}
             numberUnit="px"
           />
           <TokenControl
             label="Border style"
             value={currentStateTokens.border?.style ?? spec.baseTokens.border?.style ?? "solid"}
-            onChange={(v) => updateSelected({ border: mergePart(spec.baseTokens.border, currentStateTokens.border, { style: v }) })}
+            onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { style: v }) })}
+            options={borderStyleOptions}
             resolveValue={toConcrete}
             placeholder="solid"
             defaultValue={getDefaultValue("baseTokens.border.style")}
+            allowLiteral={false}
           />
         </div>
       </div>
@@ -518,7 +671,12 @@ export const ComponentPage = ({ componentId }: Props) => {
     </details>
   );
 
-  const baselineStyle = tokensToStyle(snapshot, mergeTokens(spec.baseTokens, spec.states?.default));
+  const inverseTokensPatch: ComponentTokens | undefined = inversePreview
+    ? { color: { bg: "color.surface.inverse", fg: "color.text.inverse", border: "color.border.default" } }
+    : undefined;
+
+  const baselineMerged = mergeTokens(spec.baseTokens, spec.states?.default, inverseTokensPatch);
+  const baselineStyle = tokensToStyle(snapshot, baselineMerged);
 
   const stateTone = (stateKey: string, style: CSSProperties) => {
     const bg = (style.backgroundColor as string) || "var(--surface-alt)";
@@ -554,16 +712,56 @@ export const ComponentPage = ({ componentId }: Props) => {
             <div style={sectionTitle}>Visual states</div>
             <div style={muted}>States in one strip; selected enlarges, others dim.</div>
           </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Inverse preview</span>
+              <button
+                type="button"
+                onClick={() => setInversePreview((v) => !v)}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border)",
+                  background: inversePreview ? "#0f172a" : "var(--surface)",
+                  color: inversePreview ? "#f8fafc" : "var(--text-muted)",
+                  cursor: "pointer"
+                }}
+              >
+                {inversePreview ? "On" : "Off"}
+              </button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>All states</span>
+              <button
+                type="button"
+                onClick={() => setShowAllStates((v) => !v)}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border)",
+                  background: showAllStates ? "#0f172a" : "var(--surface)",
+                  color: showAllStates ? "#f8fafc" : "var(--text-muted)",
+                  cursor: "pointer"
+                }}
+              >
+                {showAllStates ? "On" : "Off"}
+              </button>
+            </div>
+          </div>
         </div>
-        <div style={stateStrip}>
-          {requiredStates.map((stateKey) => {
+        {(() => {
+          const statesToRender = showAllStates ? requiredStates : [selectedState || "default"];
+          return (
+            <div style={stateStrip}>
+              {statesToRender.map((stateKey) => {
             const stateTokens = spec.states?.[stateKey];
-            const merged = mergeTokens(spec.baseTokens, stateTokens);
+            const merged = mergeTokens(spec.baseTokens, stateTokens, inverseTokensPatch);
             const style = tokensToStyle(snapshot, merged);
             const isActive = selectedState === stateKey;
             const showGhost = false;
             const tone = stateTone(stateKey, style);
             const inherits = !stateTokens;
+            const loadingPreset = merged.motion?.loadingPreset ?? snapshot.globals.motion.loading?.defaultPreset ?? "skeleton";
 
             return (
               <div
@@ -581,6 +779,7 @@ export const ComponentPage = ({ componentId }: Props) => {
                   ...statePill,
                   background: tone.cardBg,
                   borderColor: tone.borderColor,
+                  color: inversePreview ? snapshot.globals.color.text.inverse : undefined,
                   opacity: inherits && !isActive ? 0.7 : 1,
                   transform: isActive ? "scale(1.04)" : "scale(0.98)",
                   boxShadow: isActive ? tone.glow : "var(--shadow-sm)",
@@ -588,23 +787,25 @@ export const ComponentPage = ({ componentId }: Props) => {
                 }}
               >
                 <div style={statePillHeader}>
-                  <span style={{ fontWeight: 750 }}>{stateKey}</span>
+                  <span style={{ fontWeight: 750, color: inversePreview ? snapshot.globals.color.text.inverse : undefined }}>{stateKey}</span>
                 </div>
                 <div style={{ ...statePreviewSurface, background: tone.surfaceBg, borderColor: tone.borderColor }}>
                   {showGhost && (
                     <div style={ghostLayer}>
-                      <PreviewExample componentId={spec.id} style={{ ...baselineStyle, opacity: 0.4 }} snapshot={snapshot} stateKey="default" />
+                      <PreviewExample componentId={spec.id} style={{ ...baselineStyle, opacity: 0.4 }} snapshot={snapshot} stateKey="default" inverseSurface={inversePreview} loadingPreset={loadingPreset} />
                       <span style={ghostLabel}>Default</span>
                     </div>
                   )}
                   <div style={{ ...previewAnim, transform: isActive ? "scale(1.02)" : "scale(0.98)", transition: "transform 180ms ease, opacity 200ms ease" }}>
-                    <PreviewExample componentId={spec.id} style={style} snapshot={snapshot} stateKey={stateKey} />
+                    <PreviewExample componentId={spec.id} style={style} snapshot={snapshot} stateKey={stateKey} inverseSurface={inversePreview} loadingPreset={loadingPreset} />
                   </div>
                 </div>
               </div>
             );
-          })}
-        </div>
+              })}
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -619,7 +820,7 @@ export const ComponentPage = ({ componentId }: Props) => {
           <div style={muted}>Observe first, edit second.</div>
         </div>
         <div style={{ display: "grid", gap: 6 }} role="radiogroup" aria-label="States">
-          {requiredStates.map((state) => {
+          {allStates.map((state) => {
             const isActive = selectedState === state;
             return (
               <button
@@ -661,74 +862,330 @@ export const ComponentPage = ({ componentId }: Props) => {
   );
 };
 
-type PreviewProps = { componentId: string; style?: CSSProperties; snapshot: DesignSystemSnapshot; stateKey?: string };
+const fallbackLoadingPresets = {
+  skeleton: { kind: "skeleton" },
+  progress: { kind: "progress" },
+  dots: { kind: "dots" },
+  shimmer: { kind: "shimmer" },
+  "fade-stack": { kind: "fade-stack" },
+  "pulse-bar": { kind: "pulse-bar" },
+  "slide-up": { kind: "slide-up" },
+  "orbit-dots": { kind: "orbit-dots" }
+} as const;
 
-const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps) => {
+type PreviewProps = { componentId: string; style?: CSSProperties; snapshot: DesignSystemSnapshot; stateKey?: string; inverseSurface?: boolean; loadingPreset?: string };
+
+const resolveLoadingPreset = (snapshot: DesignSystemSnapshot, presetId?: string) => {
+  const motion = snapshot.globals.motion.loading;
+  const presets = motion?.presets ?? fallbackLoadingPresets;
+  const requested = presetId && presets[presetId as keyof typeof presets] ? presetId : undefined;
+  const id = requested ?? motion?.defaultPreset ?? "skeleton";
+  const preset = presets[id as keyof typeof presets] ?? fallbackLoadingPresets.skeleton;
+  const color = motion?.color || preset.color || "#e7f0ff";
+  return { id, kind: preset.kind, color } as const;
+};
+
+const msNumber = (value?: string) => {
+  if (!value) return 0;
+  const n = Number.parseFloat(String(value).replace("ms", ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+const LoadingPresetPreview = ({ snapshot, presetId }: { snapshot: DesignSystemSnapshot; presetId?: string }) => {
+  const duration = snapshot.globals.motion.duration;
+  const easing = snapshot.globals.motion.easing.standard;
+  const preset = resolveLoadingPreset(snapshot, presetId);
+  const dotDurationMs = Math.max(900, Math.round((msNumber(duration.slow) || 320) * 3));
+  const dotDuration = `${dotDurationMs}ms`;
+
+  const renderProgress = () => (
+    <div style={{ width: "100%", display: "grid", gap: 12 }}>
+      <div style={{ fontWeight: 700 }}>Loading progress</div>
+      <div style={{ height: 12, borderRadius: 999, background: `${preset.color}22`, overflow: "hidden", border: "1px solid var(--border)" }}>
+        <div
+          style={{
+            width: "70%",
+            height: "100%",
+            background: preset.color,
+            borderRadius: "inherit",
+            animation: `ds-progress-sweep ${duration.slow || "320ms"} ${easing} infinite`
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  const renderDots = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: "50%",
+            background: preset.color,
+            display: "inline-block",
+            animation: `ds-dots ${dotDuration} ease-in-out ${i * 140}ms infinite`
+          }}
+        />
+      ))}
+      <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Loading</span>
+    </div>
+  );
+
+  const renderSkeleton = () => (
+    <div style={{ width: "100%", display: "grid", gap: 8 }}>
+      <div style={{ height: 14, borderRadius: 8, background: preset.color, animation: `ds-pulse ${duration.slow || "320ms"} ${easing} infinite alternate` }} />
+      <div style={{ height: 12, width: "85%", borderRadius: 8, background: preset.color, animation: `ds-pulse ${duration.normal || "200ms"} ${easing} infinite alternate` }} />
+      <div style={{ height: 12, width: "60%", borderRadius: 8, background: preset.color, animation: `ds-pulse ${duration.fast || "120ms"} ${easing} infinite alternate` }} />
+    </div>
+  );
+
+  const renderShimmer = () => (
+    <div style={{ width: "100%", display: "grid", gap: 8 }}>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            height: 12,
+            borderRadius: 10,
+            background: `linear-gradient(120deg, ${preset.color}22, ${preset.color}66, ${preset.color}22)`,
+            backgroundSize: "200% 100%",
+            animation: `ds-shimmer ${duration.slow || "320ms"} ${easing} infinite`
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  const renderFadeStack = () => (
+    <div style={{ width: "100%", display: "grid", gap: 10 }}>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            height: 14,
+            borderRadius: 8,
+            background: preset.color,
+            opacity: 0.7,
+            animation: `ds-fade-stack ${duration.normal || "200ms"} ease-in-out ${i * 120}ms infinite`
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  const renderPulseBar = () => (
+    <div style={{ width: "100%", display: "grid", gap: 10 }}>
+      <div
+        style={{
+          height: 12,
+          borderRadius: 10,
+          background: preset.color,
+          transformOrigin: "0% 50%",
+          animation: `ds-pulse-bar ${duration.slow || "320ms"} ${easing} infinite`
+        }}
+      />
+      <div
+        style={{
+          height: 10,
+          width: "70%",
+          borderRadius: 10,
+          background: `${preset.color}cc`,
+          transformOrigin: "0% 50%",
+          animation: `ds-pulse-bar ${duration.normal || "200ms"} ${easing} infinite alternate`
+        }}
+      />
+    </div>
+  );
+
+  const renderSlideUp = () => (
+    <div style={{ width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            height: 36,
+            borderRadius: 10,
+            background: `${preset.color}dd`,
+            animation: `ds-slide-up ${duration.normal || "200ms"} ${easing} ${i * 90}ms infinite alternate`
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  const renderOrbitDots = () => (
+    <div style={{ position: "relative", width: 54, height: 54 }}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: preset.color,
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            animation: `ds-orbit ${dotDuration} linear infinite`,
+            animationDelay: `${i * 120}ms`
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  switch (preset.kind) {
+    case "progress":
+      return renderProgress();
+    case "dots":
+      return renderDots();
+    case "shimmer":
+      return renderShimmer();
+    case "fade-stack":
+      return renderFadeStack();
+    case "pulse-bar":
+      return renderPulseBar();
+    case "slide-up":
+      return renderSlideUp();
+    case "orbit-dots":
+      return renderOrbitDots();
+    default:
+      return renderSkeleton();
+  }
+};
+
+const PreviewExample = ({ componentId, style, snapshot, stateKey, inverseSurface, loadingPreset }: PreviewProps) => {
+  const gapAllowed = gapSupportedComponents.has(componentId);
+
+  if (stateKey === "loading") {
+    return <LoadingPresetPreview snapshot={snapshot} presetId={loadingPreset} />;
+  }
+
+  const splitGap = (s?: CSSProperties): { container: CSSProperties; rest: CSSProperties } => {
+    if (!gapAllowed || !s || !s.gap) return { container: {}, rest: s ?? {} };
+    const { gap, display, alignItems, ...rest } = s;
+    return {
+      container: {
+        display: display ?? "inline-flex",
+        gap,
+        alignItems: alignItems ?? "center"
+      },
+      rest
+    };
+  };
+
   switch (componentId) {
-    case "button":
-      return <button style={{ ...previewButton, ...style }}>Button</button>;
+    case "button": {
+      const { container, rest } = splitGap(style);
+      return <button style={{ ...previewButton, ...rest, ...container }}>Button</button>;
+    }
     case "input":
       return <input style={{ ...previewInput, ...style }} placeholder="Type here" />;
     case "dropdown":
+      const { container, rest } = splitGap(style);
+      const hasGap = Boolean(style?.gap);
       return (
         <label style={{ display: "grid", gap: 6, minWidth: 220 }}>
           <span style={{ color: "var(--text-muted)", fontWeight: 650 }}>Label</span>
-          <div style={{ ...selectShell, ...style }}>
+          <div style={{
+            ...selectShell,
+            ...rest,
+            ...container,
+            justifyContent: hasGap ? "flex-start" : selectShell.justifyContent
+          }}>
             <span>Choose an option</span>
             <span style={caret}>▾</span>
           </div>
         </label>
       );
-    case "checkbox":
+    case "checkbox": {
+      const isDisabled = stateKey === "disabled";
+      const isActive = stateKey === "active" || stateKey === "selected" || stateKey === "checked";
+      const isFocus = stateKey === "focus" || stateKey === "focus-visible";
+      const { container, rest } = splitGap(style);
+      const accent = snapshot.globals.color.accent.primary.base;
+      const focusRing = isFocus ? `${accent}33` : undefined;
+      
       return (
-        <label style={choiceRow}>
-          <span style={checkboxBox(style)} />
-          <span style={{ fontWeight: 600 }}>Checkbox label</span>
+        <label style={{ ...choiceRow, ...container, opacity: isDisabled ? 0.6 : 1 }}>
+          <span style={{ 
+            ...checkboxBox(rest), 
+            boxShadow: focusRing ? `0 0 0 4px ${focusRing}` : rest?.boxShadow,
+            backgroundColor: isActive ? (rest?.color || accent) : rest?.backgroundColor
+          }} />
+          <span style={{ fontWeight: 600 }}>{isDisabled ? "Disabled checkbox" : "Checkbox label"}</span>
         </label>
       );
+    }
     case "radio": {
       const isDisabled = stateKey === "disabled";
       const isActive = stateKey === "active" || stateKey === "selected" || stateKey === "checked";
       const isHover = stateKey === "hover";
       const isFocus = stateKey === "focus" || stateKey === "focus-visible";
+      const { container, rest } = splitGap(style);
 
       const accent = snapshot.globals.color.accent.primary.base;
-      const ringColor = isDisabled ? style?.borderColor || "var(--border)" : isActive || isHover || isFocus ? accent : style?.borderColor || "var(--border)";
+      const ringColor = isDisabled ? rest?.borderColor || "var(--border)" : isActive || isHover || isFocus ? accent : rest?.borderColor || "var(--border)";
       const focusRing = isFocus ? `${accent}33` : undefined;
 
       return (
-        <label style={{ ...choiceRow, opacity: isDisabled ? 0.6 : 1 }}>
-          <span style={{ ...radioOuter({ ...style, borderColor: ringColor }), boxShadow: focusRing ? `0 0 0 4px ${focusRing}` : style?.boxShadow }}>
+        <label style={{ ...choiceRow, ...container, opacity: isDisabled ? 0.6 : 1 }}>
+          <span style={{ ...radioOuter({ ...rest, borderColor: ringColor }), boxShadow: focusRing ? `0 0 0 4px ${focusRing}` : rest?.boxShadow }}>
             {isActive ? <span style={radioInner({ color: isDisabled ? "var(--text-muted)" : accent })} /> : null}
           </span>
           <span style={{ fontWeight: 600 }}>{isDisabled ? "Disabled radio" : "Radio label"}</span>
         </label>
       );
     }
-    case "toggle":
+    case "toggle": {
+      const isDisabled = stateKey === "disabled";
+      const isActive = stateKey === "active" || stateKey === "selected" || stateKey === "checked";
+      const isFocus = stateKey === "focus" || stateKey === "focus-visible";
+      const { container, rest } = splitGap(style);
+      const accent = snapshot.globals.color.accent.primary.base;
+      const focusRing = isFocus ? `${accent}33` : undefined;
+      
       return (
-        <label style={choiceRow}>
-          <div style={{ ...toggleTrack(style), position: "relative" }}>
-            <div style={toggleKnob(style)} />
+        <label style={{ ...choiceRow, ...container, opacity: isDisabled ? 0.6 : 1 }}>
+          <div style={{ 
+            ...toggleTrack(rest), 
+            position: "relative",
+            backgroundColor: isActive ? accent : rest?.backgroundColor,
+            boxShadow: focusRing ? `0 0 0 4px ${focusRing}` : rest?.boxShadow
+          }}>
+            <div style={{
+              ...toggleKnob({ ...rest, color: undefined }),
+              left: isActive ? 18 : 2,
+              background: isActive ? "#ffffff" : rest?.color || "var(--text)"
+            }} />
           </div>
-          <span style={{ fontWeight: 600 }}>Toggle label</span>
+          <span style={{ fontWeight: 600 }}>{isDisabled ? "Disabled toggle" : "Toggle label"}</span>
         </label>
       );
+    }
     case "badge":
       return <span style={{ ...badge, ...style }}>Badge</span>;
-    case "avatar":
+    case "avatar": {
+      const isDisabled = stateKey === "disabled";
+      const { container, rest } = splitGap(style);
       return (
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ ...avatarCircle, ...style }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, ...container, opacity: isDisabled ? 0.6 : 1 }}>
+          <div style={{ ...avatarCircle, ...rest }} />
           <div>
             <div style={{ fontWeight: 700 }}>Alex Kim</div>
             <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Product Design</div>
           </div>
         </div>
       );
-    case "toast":
+    }
+    case "toast": {
+      const { container, rest } = splitGap(style);
       return (
-        <div style={{ ...toastCard, ...style }}>
+        <div style={{ ...toastCard, ...rest, ...container }}>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div style={{ width: 10, height: 10, borderRadius: "50%", background: snapshot.globals.color.accent.primary.base }} />
             <div>
@@ -739,6 +1196,7 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
           <button style={ghostButton}>Undo</button>
         </div>
       );
+    }
     case "tooltip":
       return (
         <div style={{ display: "grid", gap: 8, placeItems: "center" }}>
@@ -748,10 +1206,12 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
           <div style={{ width: 32, height: 1, background: "var(--border)" }} />
         </div>
       );
-    case "modal":
+    case "modal": {
+      const isDisabled = stateKey === "disabled";
+      const { container, rest } = splitGap(style);
       return (
         <div style={modalBackdrop}>
-          <div style={{ ...modalCard, ...style }}>
+          <div style={{ ...modalCard, ...rest, ...container, opacity: isDisabled ? 0.6 : 1 }}>
             <div style={{ fontWeight: 700, marginBottom: 8 }}>Modal title</div>
             <div style={{ color: "var(--text-muted)", marginBottom: 12 }}>Supporting text inside a centered panel.</div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -761,6 +1221,7 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
           </div>
         </div>
       );
+    }
     case "table": {
       return (
         <div style={{ ...tableShell, ...style }}>
@@ -780,8 +1241,9 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
       );
     }
     case "navbar": {
+      const { container, rest } = splitGap(style);
       return (
-        <div style={{ ...bar, ...style }}>
+        <div style={{ ...bar, ...rest, ...container }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={dot} />
             <span style={{ fontWeight: 700 }}>Product</span>
@@ -798,9 +1260,10 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
         </div>
       );
     }
-    case "footer":
+    case "footer": {
+      const { container, rest } = splitGap(style);
       return (
-        <div style={{ ...footerBar, ...style }}>
+        <div style={{ ...footerBar, ...rest, ...container }}>
           <span style={{ fontWeight: 700 }}>Product</span>
           <div style={{ display: "flex", gap: 12, color: "var(--text-muted)", fontWeight: 600 }}>
             <span>Privacy</span>
@@ -809,19 +1272,39 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
           </div>
         </div>
       );
-    case "list-item":
+    }
+    case "list-item": {
+      const { container, rest } = splitGap(style);
       return (
-        <div style={{ ...listRow, ...style }}>
-          <div style={{ ...avatarCircle, width: 36, height: 36 }} />
-          <div>
-            <div style={{ fontWeight: 700 }}>List item title</div>
-            <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Secondary line</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 0, width: "100%" }}>
+          <div style={{ ...listRow, ...rest, ...container }}>
+            <div style={{ ...avatarCircle, width: 36, height: 36 }} />
+            <div>
+              <div style={{ fontWeight: 700 }}>First item title</div>
+              <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Secondary line</div>
+            </div>
+          </div>
+          <div style={{ ...listRow, ...rest, ...container, opacity: 0.5 }}>
+            <div style={{ ...avatarCircle, width: 36, height: 36 }} />
+            <div>
+              <div style={{ fontWeight: 700 }}>Second item</div>
+              <div style={{ color: "var(--text-muted)", fontSize: 13 }}>Another line</div>
+            </div>
+          </div>
+          <div style={{ ...listRow, ...rest, ...container, opacity: 0.5 }}>
+            <div style={{ ...avatarCircle, width: 36, height: 36 }} />
+            <div>
+              <div style={{ fontWeight: 700 }}>Third item</div>
+              <div style={{ color: "var(--text-muted)", fontSize: 13 }}>More content</div>
+            </div>
           </div>
         </div>
       );
+    }
     case "divider":
       return <div style={{ ...dividerLine, borderColor: style?.borderColor || "var(--border)" }} />;
     case "tabs": {
+      const isDisabled = stateKey === "disabled";
       const baseCard = {
         borderRadius: "16px",
         padding: "16px",
@@ -829,6 +1312,7 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
         background: snapshot.globals.color.surface.elevated,
         boxShadow: snapshot.globals.shadow.sm,
         display: "grid",
+        opacity: isDisabled ? 0.6 : 1,
         gap: 12
       } as CSSProperties;
       const inverseCard = {
@@ -838,7 +1322,7 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
         border: `1px solid ${snapshot.globals.color.border.default}`
       } as CSSProperties;
 
-      const tabRow = (
+      const tabRow = (isInverse: boolean) => (
         <div style={{ display: "flex", gap: 8 }}>
           {["Overview", "Activity", "Settings"].map((tab, i) => (
             <button
@@ -848,7 +1332,7 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
                 borderRadius: 12,
                 border: i === 0 ? "none" : `1px solid ${snapshot.globals.color.border.subtle}`,
                 background: i === 0 ? snapshot.globals.color.accent.primary.base : "transparent",
-                color: i === 0 ? snapshot.globals.color.accent.primary.contrast : snapshot.globals.color.text.primary,
+                color: i === 0 ? snapshot.globals.color.accent.primary.contrast : isInverse ? snapshot.globals.color.text.inverse : snapshot.globals.color.text.primary,
                 cursor: "pointer",
                 boxShadow: i === 0 ? snapshot.globals.shadow.sm : "none"
               }}
@@ -859,22 +1343,20 @@ const PreviewExample = ({ componentId, style, snapshot, stateKey }: PreviewProps
         </div>
       );
 
+      const surfaceCard = inverseSurface ? inverseCard : baseCard;
+      const previewCard = inverseSurface
+        ? { ...previewCardBase, ...style, background: "rgba(255,255,255,0.06)", color: snapshot.globals.color.text.inverse }
+        : { ...previewCardBase, ...style, borderColor: snapshot.globals.color.border.subtle };
+      const bodyColor = inverseSurface ? snapshot.globals.color.text.inverse : "var(--text-muted)";
+
       return (
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={baseCard}>
-            <div style={{ fontWeight: 700 }}>Dashboard</div>
-            {tabRow}
-            <div style={{ ...previewCardBase, ...style, borderColor: snapshot.globals.color.border.subtle }}>
-              <div style={{ fontWeight: 600 }}>Card title</div>
-              <div style={{ color: "var(--text-muted)" }}>Surface context for tabs.</div>
-            </div>
-          </div>
-          <div style={inverseCard}>
-            <div style={{ fontWeight: 700 }}>Inverse Surface</div>
-            {tabRow}
-            <div style={{ ...previewCardBase, ...style, background: "rgba(255,255,255,0.06)", color: snapshot.globals.color.text.inverse }}>
-              <div style={{ fontWeight: 600 }}>Card title</div>
-              <div style={{ opacity: 0.8 }}>Preview on inverse.</div>
+        <div style={surfaceCard}>
+          <div style={{ fontWeight: 700 }}>{inverseSurface ? "Inverse surface" : "Dashboard"}</div>
+          {tabRow(Boolean(inverseSurface))}
+          <div style={previewCard}>
+            <div style={{ fontWeight: 600 }}>Card title</div>
+            <div style={{ color: bodyColor }}>
+              {inverseSurface ? "Surface context (inverse)." : "Surface context for tabs."}
             </div>
           </div>
         </div>
@@ -949,7 +1431,8 @@ const stateStrip: CSSProperties = {
   gap: 10,
   overflowX: "auto",
   paddingBottom: 4,
-  paddingTop: 2
+  paddingTop: 2,
+  paddingLeft: 6
 };
 
 const statePill: CSSProperties = {
@@ -1232,7 +1715,11 @@ const previewButton: CSSProperties = {
   cursor: "pointer",
   fontWeight: 700,
   boxShadow: "var(--shadow-sm)",
-  width: "100%"
+  width: "100%",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8
 };
 
 const previewInput: CSSProperties = {

@@ -179,7 +179,9 @@ export const useDesignSystem = create<DesignSystemState>((set, get) => ({
       return;
     }
     console.log('[Store] Snapshot loaded successfully:', snap.name);
-    set({ snapshot: snap, selectedSection: "theme", dirty: false });
+    console.log('[Store] Sample color after load:', snap.globals.color.accent.primary.base);
+    // Clone the snapshot to ensure React detects the change
+    set({ snapshot: structuredClone(snap), selectedSection: "theme", dirty: false });
   },
   duplicateSnapshot: (name) => {
     const current = get().snapshot;

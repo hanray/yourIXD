@@ -104,7 +104,22 @@ export type MotionTokens = {
     standard: string;
     emphasized: string;
   };
+  loading?: {
+    color: string;
+    defaultPreset: LoadingPresetKind;
+    presets: Record<string, { kind: LoadingPresetKind; color?: string }>;
+  };
 };
+
+export type LoadingPresetKind =
+  | "skeleton"
+  | "progress"
+  | "dots"
+  | "shimmer"
+  | "fade-stack"
+  | "pulse-bar"
+  | "slide-up"
+  | "orbit-dots";
 
 export type Globals = {
   color: ColorTokens;
@@ -147,10 +162,12 @@ export type ComponentTokens = {
     transition?: string;
     duration?: string;
     easing?: string;
+    loadingPreset?: string;
   };
   layout?: {
     minWidth?: string;
     maxWidth?: string;
+    direction?: string;
   };
 };
 
@@ -277,7 +294,38 @@ export const designSystemSchema: z.ZodType<DesignSystemSnapshot> = z.object({
     shadow: z.object({ none: z.string(), sm: z.string(), md: z.string(), lg: z.string() }),
     motion: z.object({
       duration: z.object({ fast: z.string(), normal: z.string(), slow: z.string() }),
-      easing: z.object({ standard: z.string(), emphasized: z.string() })
+      easing: z.object({ standard: z.string(), emphasized: z.string() }),
+      loading: z
+        .object({
+          color: z.string(),
+          defaultPreset: z.union([
+            z.literal("skeleton"),
+            z.literal("progress"),
+            z.literal("dots"),
+            z.literal("shimmer"),
+            z.literal("fade-stack"),
+            z.literal("pulse-bar"),
+            z.literal("slide-up"),
+            z.literal("orbit-dots")
+          ]),
+          presets: z.record(
+            z.string(),
+            z.object({
+              kind: z.union([
+                z.literal("skeleton"),
+                z.literal("progress"),
+                z.literal("dots"),
+                z.literal("shimmer"),
+                z.literal("fade-stack"),
+                z.literal("pulse-bar"),
+                z.literal("slide-up"),
+                z.literal("orbit-dots")
+              ]),
+              color: z.string().optional()
+            })
+          )
+        })
+        .optional()
     })
   }),
   components: z.record(

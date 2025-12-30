@@ -43,3 +43,49 @@ button {
 input, select, textarea {
   font: inherit;
 }
+
+@keyframes ds-pulse {
+  0% { opacity: 0.55; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.55; }
+}
+
+@keyframes ds-dots {
+  0% { transform: translateY(0); opacity: 0.6; }
+  25% { transform: translateY(-6px); opacity: 1; }
+  50% { transform: translateY(0); opacity: 0.8; }
+  75% { transform: translateY(6px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0.6; }
+}
+
+@keyframes ds-progress-sweep {
+  0% { transform: translateX(-30%); }
+  100% { transform: translateX(110%); }
+}
+
+@keyframes ds-shimmer {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+@keyframes ds-fade-stack {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+@keyframes ds-pulse-bar {
+  0% { transform: scaleX(0.8); opacity: 0.6; }
+  50% { transform: scaleX(1.05); opacity: 1; }
+  100% { transform: scaleX(0.8); opacity: 0.6; }
+}
+
+@keyframes ds-slide-up {
+  0% { transform: translateY(6px); opacity: 0.7; }
+  100% { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes ds-orbit {
+  0% { transform: translate(-50%, -50%) rotate(0deg) translate(16px) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg) translate(16px) rotate(-360deg); }
+}

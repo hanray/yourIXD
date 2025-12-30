@@ -1,7 +1,18 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ComponentTokens, DesignSystemSnapshot } from "@models/designSystem";
 import { useDesignSystem } from "@state/store";
 import { Surface } from "@components/common/Surface";
+
+const fallbackLoadingPresets = {
+  skeleton: { kind: "skeleton" },
+  progress: { kind: "progress" },
+  dots: { kind: "dots" },
+  shimmer: { kind: "shimmer" },
+  "fade-stack": { kind: "fade-stack" },
+  "pulse-bar": { kind: "pulse-bar" },
+  "slide-up": { kind: "slide-up" },
+  "orbit-dots": { kind: "orbit-dots" }
+} as const;
 
 const resolvePath = (snapshot: DesignSystemSnapshot, ref?: string) => {
   if (!ref) return undefined;
@@ -76,6 +87,8 @@ export const LivePreview = ({ componentId }: Props) => {
   const [stateKey, setStateKey] = useState<string>("default");
   const [variantKey, setVariantKey] = useState<string>("default");
   const [polarity, setPolarity] = useState<"default" | "inverse">("default");
+  const motionTimer = useRef<number>();
+  const [motionActive, setMotionActive] = useState(true);
 
   const tokens = useMemo(() => {
     if (!spec) return undefined;
@@ -86,6 +99,22 @@ export const LivePreview = ({ componentId }: Props) => {
   }, [spec, stateKey, variantKey]);
 
   const style = tokens ? tokensToStyle(snapshot, tokens) : undefined;
+  const loadingPreset = tokens?.motion?.loadingPreset ?? snapshot.globals.motion.loading?.defaultPreset ?? "skeleton";
+
+  useEffect(() => {
+    if (motionTimer.current) window.clearTimeout(motionTimer.current);
+    setMotionActive(false);
+    const start = () => {
+      setMotionActive(true);
+      const resetMs = Number.parseFloat((snapshot.globals.motion.duration.slow || "320ms").replace("ms", "")) + 80;
+      motionTimer.current = window.setTimeout(() => setMotionActive(false), resetMs);
+    };
+    const id = window.setTimeout(start, 30);
+    return () => {
+      window.clearTimeout(id);
+      if (motionTimer.current) window.clearTimeout(motionTimer.current);
+    };
+  }, [snapshot.globals.motion.duration, snapshot.globals.motion.easing]);
 
   return (
     <div
@@ -142,7 +171,26 @@ export const LivePreview = ({ componentId }: Props) => {
           justifyContent: "center"
         }}
       >
-        {spec ? <PreviewExample componentId={spec.id} style={style} snapshot={snapshot} /> : <ThemePreview snapshot={snapshot} />}
+        {spec ? (
+          <PreviewExample componentId={spec.id} style={style} snapshot={snapshot} stateKey={stateKey} loadingPreset={loadingPreset} />
+        ) : (
+          <div style={{ display: "grid", gap: 16, width: "100%" }}>
+            <ThemePreview snapshot={snapshot} />
+            <MotionPreview
+              snapshot={snapshot}
+              active={motionActive}
+              onReplay={() => {
+                if (motionTimer.current) window.clearTimeout(motionTimer.current);
+                setMotionActive(false);
+                requestAnimationFrame(() => {
+                  setMotionActive(true);
+                  const resetMs = Number.parseFloat((snapshot.globals.motion.duration.slow || "320ms").replace("ms", "")) + 80;
+                  motionTimer.current = window.setTimeout(() => setMotionActive(false), resetMs);
+                });
+              }}
+            />
+          </div>
+        )}
       </Surface>
     </div>
   );
@@ -152,9 +200,197 @@ type PreviewProps = {
   componentId: string;
   style?: CSSProperties;
   snapshot: DesignSystemSnapshot;
+  stateKey?: string;
+  loadingPreset?: string;
 };
 
-const PreviewExample = ({ componentId, style, snapshot }: PreviewProps) => {
+const resolveLoadingPreset = (snapshot: DesignSystemSnapshot, presetId?: string) => {
+  const motion = snapshot.globals.motion.loading;
+  const presets = motion?.presets ?? fallbackLoadingPresets;
+  const requested = presetId && presets[presetId as keyof typeof presets] ? presetId : undefined;
+  const id = requested ?? motion?.defaultPreset ?? "skeleton";
+  const preset = presets[id as keyof typeof presets] ?? fallbackLoadingPresets.skeleton;
+  const color = motion?.color || preset.color || "#e7f0ff";
+  return { id, kind: preset.kind, color } as const;
+};
+
+const msNumber = (value?: string) => {
+  if (!value) return 0;
+  const n = Number.parseFloat(String(value).replace("ms", ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+const LoadingPresetPreview = ({ snapshot, presetId }: { snapshot: DesignSystemSnapshot; presetId?: string }) => {
+  const duration = snapshot.globals.motion.duration;
+  const easing = snapshot.globals.motion.easing.standard;
+  const preset = resolveLoadingPreset(snapshot, presetId);
+  const dotDurationMs = Math.max(900, Math.round((msNumber(duration.slow) || 320) * 3));
+  const dotDuration = `${dotDurationMs}ms`;
+
+  const renderProgress = () => (
+    <div style={{ width: "100%", display: "grid", gap: 12 }}>
+      <div style={{ fontWeight: 700 }}>Loading progress</div>
+      <div style={{ height: 12, borderRadius: 999, background: `${preset.color}22`, overflow: "hidden", border: "1px solid var(--border)" }}>
+        <div
+          style={{
+            width: "70%",
+            height: "100%",
+            background: preset.color,
+            borderRadius: "inherit",
+            animation: `ds-progress-sweep ${duration.slow || "320ms"} ${easing} infinite`
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  const renderDots = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: "50%",
+            background: preset.color,
+            display: "inline-block",
+            animation: `ds-dots ${dotDuration} ease-in-out ${i * 140}ms infinite`
+          }}
+        />
+      ))}
+      <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Loading</span>
+    </div>
+  );
+
+  const renderSkeleton = () => (
+    <div style={{ width: "100%", display: "grid", gap: 8 }}>
+      <div style={{ height: 14, borderRadius: 8, background: preset.color, animation: `ds-pulse ${duration.slow || "320ms"} ${easing} infinite alternate` }} />
+      <div style={{ height: 12, width: "85%", borderRadius: 8, background: preset.color, animation: `ds-pulse ${duration.normal || "200ms"} ${easing} infinite alternate` }} />
+      <div style={{ height: 12, width: "60%", borderRadius: 8, background: preset.color, animation: `ds-pulse ${duration.fast || "120ms"} ${easing} infinite alternate` }} />
+    </div>
+  );
+
+  const renderShimmer = () => (
+    <div style={{ width: "100%", display: "grid", gap: 8 }}>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            height: 12,
+            borderRadius: 10,
+            background: `linear-gradient(120deg, ${preset.color}22, ${preset.color}66, ${preset.color}22)`,
+            backgroundSize: "200% 100%",
+            animation: `ds-shimmer ${duration.slow || "320ms"} ${easing} infinite`
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  const renderFadeStack = () => (
+    <div style={{ width: "100%", display: "grid", gap: 10 }}>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            height: 14,
+            borderRadius: 8,
+            background: preset.color,
+            opacity: 0.7,
+            animation: `ds-fade-stack ${duration.normal || "200ms"} ease-in-out ${i * 120}ms infinite`
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  const renderPulseBar = () => (
+    <div style={{ width: "100%", display: "grid", gap: 10 }}>
+      <div
+        style={{
+          height: 12,
+          borderRadius: 10,
+          background: preset.color,
+          transformOrigin: "0% 50%",
+          animation: `ds-pulse-bar ${duration.slow || "320ms"} ${easing} infinite`
+        }}
+      />
+      <div
+        style={{
+          height: 10,
+          width: "70%",
+          borderRadius: 10,
+          background: `${preset.color}cc`,
+          transformOrigin: "0% 50%",
+          animation: `ds-pulse-bar ${duration.normal || "200ms"} ${easing} infinite alternate`
+        }}
+      />
+    </div>
+  );
+
+  const renderSlideUp = () => (
+    <div style={{ width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            height: 36,
+            borderRadius: 10,
+            background: `${preset.color}dd`,
+            animation: `ds-slide-up ${duration.normal || "200ms"} ${easing} ${i * 90}ms infinite alternate`
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  const renderOrbitDots = () => (
+    <div style={{ position: "relative", width: 54, height: 54 }}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: preset.color,
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            animation: `ds-orbit ${dotDuration} linear infinite`,
+            animationDelay: `${i * 120}ms`
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  switch (preset.kind) {
+    case "progress":
+      return renderProgress();
+    case "dots":
+      return renderDots();
+    case "shimmer":
+      return renderShimmer();
+    case "fade-stack":
+      return renderFadeStack();
+    case "pulse-bar":
+      return renderPulseBar();
+    case "slide-up":
+      return renderSlideUp();
+    case "orbit-dots":
+      return renderOrbitDots();
+    default:
+      return renderSkeleton();
+  }
+};
+
+const PreviewExample = ({ componentId, style, snapshot, stateKey, loadingPreset }: PreviewProps) => {
+  if (stateKey === "loading") {
+    return <LoadingPresetPreview snapshot={snapshot} presetId={loadingPreset} />;
+  }
   switch (componentId) {
     case "button":
       return (
@@ -380,6 +616,63 @@ const ThemePreview = ({ snapshot }: { snapshot: DesignSystemSnapshot }) => {
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Color & Type</div>
         <div style={{ color: "var(--text-muted)" }}>Accent {snapshot.globals.color.accent.primary.base}</div>
         <div style={{ color: "var(--text-muted)" }}>Body size {snapshot.globals.font.size[2]}</div>
+      </div>
+    </div>
+  );
+};
+
+const MotionPreview = ({ snapshot, active, onReplay }: { snapshot: DesignSystemSnapshot; active: boolean; onReplay: () => void }) => {
+  const loading = snapshot.globals.motion.loading;
+  const loadingColor = loading?.color || snapshot.globals.color.accent.primary.base;
+  const barColor = loading?.color || loading?.presets?.progress?.color || loadingColor;
+
+  return (
+    <div style={motionBox}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "grid", gap: 2 }}>
+          <span style={{ fontWeight: 700 }}>Animation preview</span>
+          <span style={{ color: "var(--text-muted)", fontWeight: 600, fontSize: 13 }}>Uses motion tokens</span>
+        </div>
+        <button style={pillButton} onClick={onReplay}>Replay</button>
+      </div>
+      <div style={motionTrack}>
+        <div
+          style={{
+            ...motionDot,
+            transform: active ? "translateX(160px)" : "translateX(0px)",
+            transition: `transform ${snapshot.globals.motion.duration.fast} ${snapshot.globals.motion.easing.standard}`,
+            background: loadingColor
+          }}
+        />
+        <div
+          style={{
+            ...motionCard,
+            transform: active ? "translateY(-6px)" : "translateY(0px)",
+            boxShadow: active ? snapshot.globals.shadow.md : snapshot.globals.shadow.sm,
+            transition: `transform ${snapshot.globals.motion.duration.normal} ${snapshot.globals.motion.easing.emphasized}, box-shadow ${snapshot.globals.motion.duration.slow} ${snapshot.globals.motion.easing.standard}, background ${snapshot.globals.motion.duration.normal} ${snapshot.globals.motion.easing.standard}`
+          }}
+        >
+          <div style={{ fontWeight: 700 }}>Motion token demo</div>
+          <div style={{ color: "var(--text-muted)", fontWeight: 600, fontSize: 13 }}>
+            {snapshot.globals.motion.duration.normal} · {snapshot.globals.motion.easing.standard}
+          </div>
+        </div>
+        <div style={loadingRow}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700 }}>
+            <span>Loading</span>
+            <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>uses motion.duration.slow</span>
+          </div>
+          <div style={loadingTrack}>
+            <div
+              style={{
+                ...loadingBar,
+                width: active ? "88%" : "18%",
+                transition: `width ${snapshot.globals.motion.duration.slow} ${snapshot.globals.motion.easing.standard}`,
+                background: barColor
+              }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -637,4 +930,67 @@ const dividerLine: CSSProperties = {
   width: "100%",
   borderTop: "1px solid var(--border)",
   margin: "8px 0"
+};
+
+const motionBox: CSSProperties = {
+  border: "1px solid var(--border)",
+  borderRadius: 14,
+  padding: 12,
+  background: "var(--surface-alt)",
+  display: "grid",
+  gap: 10
+};
+
+const motionTrack: CSSProperties = {
+  position: "relative",
+  borderRadius: 12,
+  padding: 18,
+  background: "linear-gradient(90deg, rgba(15,98,254,0.08), transparent)",
+  overflow: "hidden",
+  minHeight: 180,
+  border: "1px dashed var(--border)",
+  display: "grid",
+  gap: 16
+};
+
+const motionCard: CSSProperties = {
+  position: "relative",
+  borderRadius: 12,
+  padding: 14,
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  boxShadow: "var(--shadow-sm)",
+  marginLeft: 44
+};
+
+const motionDot: CSSProperties = {
+  width: 20,
+  height: 20,
+  borderRadius: "50%",
+  background: "#0f62fe",
+  boxShadow: "0 6px 18px rgba(15,98,254,0.35)",
+  position: "absolute",
+  top: 26,
+  left: 18
+};
+
+const loadingRow: CSSProperties = {
+  display: "grid",
+  gap: 8,
+  marginTop: 6
+};
+
+const loadingTrack: CSSProperties = {
+  width: "100%",
+  height: 12,
+  borderRadius: 999,
+  background: "rgba(15,98,254,0.12)",
+  overflow: "hidden",
+  border: "1px solid var(--border)"
+};
+
+const loadingBar: CSSProperties = {
+  height: "100%",
+  borderRadius: "inherit",
+  background: "#0f62fe"
 };

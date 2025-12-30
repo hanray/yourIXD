@@ -26,9 +26,6 @@ export const defaultSnapshot = (): DesignSystemSnapshot => ({
         disabled: "rgba(15, 23, 42, 0.35)"
       },
       border: {
-        default: "#e2e8f0",
-        subtle: "#edf2f7",
-        focus: "#0f62fe",
         danger: "#b91c1c"
       },
       accent: {
@@ -81,6 +78,15 @@ export const defaultSnapshot = (): DesignSystemSnapshot => ({
       easing: {
         standard: "cubic-bezier(0.4, 0.0, 0.2, 1)",
         emphasized: "cubic-bezier(0.2, 0.0, 0.0, 1)"
+      },
+      loading: {
+        color: "#e7f0ff",
+        defaultPreset: "skeleton",
+        presets: {
+          skeleton: { kind: "skeleton", color: "#e7f0ff" },
+          progress: { kind: "progress", color: "#0f62fe" },
+          dots: { kind: "dots", color: "#0f62fe" }
+        }
       }
     }
   },
@@ -256,7 +262,8 @@ export const defaultSnapshot = (): DesignSystemSnapshot => ({
         color: { fg: "color.text.primary", bg: "color.surface.elevated", border: "color.border.default" },
         spacing: { paddingX: "space.6", paddingY: "space.6" },
         radius: "radius.lg",
-        shadow: "shadow.lg"
+        shadow: "shadow.lg",
+        layout: { direction: "column" }
       }
     },
     dropdown: {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useDesignSystem } from "@state/store";
 import { persistence, SnapshotMeta } from "@state/persistence";
 import { Panel } from "@components/common/Panel";
@@ -79,6 +79,37 @@ const safeHex = (value: string, fallback = "#000000") => {
   return hex.test(value.trim()) ? value.trim() : fallback;
 };
 
+const msNumber = (value?: string) => {
+  if (!value) return 0;
+  const n = Number.parseFloat(String(value).replace("ms", ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+const fallbackLoadingPresets = {
+  skeleton: { kind: "skeleton" },
+  progress: { kind: "progress" },
+  dots: { kind: "dots" },
+  shimmer: { kind: "shimmer" },
+  "fade-stack": { kind: "fade-stack" },
+  "pulse-bar": { kind: "pulse-bar" },
+  "slide-up": { kind: "slide-up" },
+  "orbit-dots": { kind: "orbit-dots" }
+} as const;
+
+type LoadingPresetResolved = { id: string; kind: "skeleton" | "progress" | "dots"; color: string };
+
+const resolveLoadingPreset = (
+  motion: { color?: string; defaultPreset?: string; presets?: Record<string, { kind: LoadingPresetResolved["kind"]; color?: string }> },
+  presetId?: string
+): LoadingPresetResolved => {
+  const presets = motion?.presets ?? fallbackLoadingPresets;
+  const requested = presetId && presets[presetId] ? presetId : undefined;
+  const id = requested ?? motion?.defaultPreset ?? "skeleton";
+  const preset = presets[id] ?? fallbackLoadingPresets.skeleton;
+  const color = motion?.color || preset.color || "#e7f0ff";
+  return { id, kind: preset.kind, color };
+};
+
 const StepperInput = ({
   value,
   min,
@@ -151,6 +182,7 @@ export const ThemeSettingsPage = () => {
   const [description, setDescription] = useState(snapshot.description ?? "");
   const [available, setAvailable] = useState<SnapshotMeta[]>([]);
   const [selectedLoad, setSelectedLoad] = useState<string>("");
+  const [loadStatus, setLoadStatus] = useState<"idle" | "success" | "error">("idle");
   const [webFontFamily, setWebFontFamily] = useState(snapshot.globals.font.web?.family ?? snapshot.globals.font.family.sans);
   const [webFontSource, setWebFontSource] = useState(snapshot.globals.font.web?.source ?? "");
   const [webFontKind, setWebFontKind] = useState<"url" | "google">(snapshot.globals.font.web?.kind ?? "url");
@@ -167,6 +199,7 @@ export const ThemeSettingsPage = () => {
   ];
   const [basicFont, setBasicFont] = useState(snapshot.globals.font.family.sans);
   const [newRoleName, setNewRoleName] = useState("");
+  const [motionPreviewSeed, setMotionPreviewSeed] = useState(0);
 
   useEffect(() => {
     setAvailable(persistence.list());
@@ -267,6 +300,19 @@ export const ThemeSettingsPage = () => {
 
   const labelize = (key: string) => key.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+  const handleLoadSnapshot = () => {
+    if (!selectedLoad) return;
+    try {
+      loadSnapshot(selectedLoad);
+      setLoadStatus("success");
+      setTimeout(() => setLoadStatus("idle"), 3000);
+    } catch (err) {
+      console.error('[UI] Failed to load snapshot:', err);
+      setLoadStatus("error");
+      setTimeout(() => setLoadStatus("idle"), 3000);
+    }
+  };
+
   const customColors = useMemo(() => {
     const color = snapshot.globals.color as any;
     const derive = (obj: Record<string, unknown>, baseKeys: string[]) =>
@@ -299,6 +345,31 @@ export const ThemeSettingsPage = () => {
     update(path, undefined);
   };
 
+  const loadingMotionRaw = snapshot.globals.motion.loading;
+  const loadingMotion = {
+    color: loadingMotionRaw?.color ?? "#e7f0ff",
+    defaultPreset: loadingMotionRaw?.defaultPreset ?? "skeleton",
+    presets: loadingMotionRaw?.presets ?? fallbackLoadingPresets
+  };
+
+  const loadingPresets = loadingMotion.presets ?? fallbackLoadingPresets;
+  const loadingPresetOptions = Object.keys(loadingPresets);
+  const currentLoadingPreset = resolveLoadingPreset(loadingMotion, loadingMotion.defaultPreset);
+
+  const presetLabel = (name: string) => {
+    const map: Record<string, string> = {
+      skeleton: "Skeleton shimmer",
+      progress: "Loading bar",
+      dots: "3 dots (sine)",
+      shimmer: "Gradient shimmer",
+      "fade-stack": "Fade stack",
+      "pulse-bar": "Pulse bar",
+      "slide-up": "Slide-up tiles",
+      "orbit-dots": "Orbit dots"
+    };
+    return map[name] ?? name;
+  };
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", height: "100%" }}>
       <div style={{ padding: 20, overflow: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -319,10 +390,23 @@ export const ThemeSettingsPage = () => {
                   </option>
                 ))}
               </select>
-              <button style={buttonSecondary} disabled={!selectedLoad} onClick={() => selectedLoad && loadSnapshot(selectedLoad)}>
+              <button style={buttonSecondary} disabled={!selectedLoad} onClick={handleLoadSnapshot}>
                 Load
               </button>
             </div>
+            {loadStatus !== "idle" && (
+              <div style={{
+                padding: "10px 14px",
+                borderRadius: 10,
+                background: loadStatus === "success" ? "#d4edda" : "#f8d7da",
+                color: loadStatus === "success" ? "#155724" : "#721c24",
+                border: `1px solid ${loadStatus === "success" ? "#c3e6cb" : "#f5c6cb"}`,
+                fontWeight: 600,
+                fontSize: 14
+              }}>
+                {loadStatus === "success" ? "✓ Snapshot loaded successfully" : "✗ Failed to load snapshot"}
+              </div>
+            )}
           </div>
         </Panel>
 
@@ -606,6 +690,81 @@ export const ThemeSettingsPage = () => {
                 <input style={inputStyle} value={value} onChange={(e) => update(`motion.easing.${key}`, e.target.value)} />
               </div>
             ))}
+
+            <div style={subtleHeader}>Loading animation</div>
+            <div style={{ display: "grid", gap: 12 }}>
+              <Field
+                label="Skeleton color"
+                input={(
+                  <input
+                    type="color"
+                    aria-label="Skeleton color"
+                    style={{ ...inputStyle, width: 80, padding: 4 }}
+                    value={loadingMotion.color}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      update("motion.loading.color", next);
+                      update("motion.loading.presets.skeleton.color", next);
+                    }}
+                  />
+                )}
+              />
+
+              <Field
+                label="Default loading preset"
+                input={(
+                  <select
+                    style={inputStyle}
+                    value={loadingMotion.defaultPreset}
+                    onChange={(e) => update("motion.loading.defaultPreset", e.target.value)}
+                  >
+                    {loadingPresetOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {presetLabel(name)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              />
+
+              <div style={{ color: "var(--text-muted)", fontWeight: 600, fontSize: 13 }}>
+                Pick a default animation for all components. Individual components can override this under the Loading state.
+              </div>
+            </div>
+
+            <div style={subtleHeader}>Preview</div>
+            <div style={motionPreviewBox} key={motionPreviewSeed}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "grid", gap: 2 }}>
+                  <span style={{ fontWeight: 700 }}>Loading preview</span>
+                  <span style={{ fontWeight: 600, color: "var(--text-muted)", textTransform: "capitalize" }}>{currentLoadingPreset.id}</span>
+                </div>
+                <button style={buttonPrimary} onClick={() => setMotionPreviewSeed((n) => n + 1)}>Replay</button>
+              </div>
+
+              <div style={{ display: "grid", gap: 12 }}>
+                <LoadingPreviewRow
+                  label="Card"
+                  preset={currentLoadingPreset}
+                  duration={snapshot.globals.motion.duration}
+                  easing={snapshot.globals.motion.easing.standard}
+                />
+                <LoadingPreviewRow
+                  label="Form"
+                  preset={currentLoadingPreset}
+                  duration={snapshot.globals.motion.duration}
+                  easing={snapshot.globals.motion.easing.standard}
+                  layout="split"
+                />
+                <LoadingPreviewRow
+                  label="Button row"
+                  preset={currentLoadingPreset}
+                  duration={snapshot.globals.motion.duration}
+                  easing={snapshot.globals.motion.easing.standard}
+                  layout="buttons"
+                />
+              </div>
+            </div>
           </div>
         </Panel>
       </div>
@@ -764,4 +923,255 @@ const scaleRow: CSSProperties = {
 const mutedText: CSSProperties = {
   color: "var(--text-muted)",
   fontWeight: 600
+};
+
+const motionPreviewBox: CSSProperties = {
+  border: "1px solid var(--border)",
+  borderRadius: 14,
+  padding: 12,
+  background: "var(--surface-alt)",
+  display: "grid",
+  gap: 12
+};
+
+const loadingTile: CSSProperties = {
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  padding: 12,
+  background: "var(--surface)",
+  boxShadow: "var(--shadow-sm)",
+  display: "grid",
+  gap: 10
+};
+
+const loadingBarRow = (color: string, width: string, duration: string, easing: string): CSSProperties => ({
+  height: 12,
+  width,
+  borderRadius: 10,
+  background: color,
+  animation: `ds-pulse ${duration} ${easing} infinite alternate`
+});
+
+const LoadingPreviewRow = ({
+  label,
+  preset,
+  duration,
+  easing,
+  layout
+}: {
+  label: string;
+  preset: LoadingPresetResolved;
+  duration: { fast: string; normal: string; slow: string };
+  easing: string;
+  layout?: "split" | "buttons";
+}) => {
+  const dotDurationMs = Math.max(900, Math.round((msNumber(duration.slow) || 320) * 3));
+  const dotDuration = `${dotDurationMs}ms`;
+
+  const renderSkeleton = () => (
+    <div style={loadingTile}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Skeleton</span>
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        <div style={loadingBarRow(preset.color, "72%", duration.slow || "320ms", easing)} />
+        <div style={loadingBarRow(preset.color, layout === "split" ? "48%" : "54%", duration.normal || "200ms", easing)} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1, ...loadingBarRow(preset.color, "100%", duration.fast || "120ms", easing) }} />
+          {layout !== "buttons" && <div style={{ flex: 1, ...loadingBarRow(preset.color, "100%", duration.fast || "120ms", easing) }} />}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderProgress = () => (
+    <div style={loadingTile}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Loading bar</span>
+      </div>
+      <div style={{ height: 10, borderRadius: 999, background: `${preset.color}22`, overflow: "hidden", border: "1px solid var(--border)" }}>
+        <div
+          style={{
+            width: "70%",
+            height: "100%",
+            background: preset.color,
+            borderRadius: "inherit",
+            animation: `ds-progress-sweep ${duration.slow || "320ms"} ${easing} infinite`
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  const renderDots = () => (
+    <div style={loadingTile}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>3 dots</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 28 }}>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: "50%",
+              background: preset.color,
+              display: "inline-block",
+              animation: `ds-dots ${dotDuration} ease-in-out ${i * 140}ms infinite`
+            }}
+          />
+        ))}
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Loading</span>
+      </div>
+    </div>
+  );
+
+  const renderShimmer = () => (
+    <div style={loadingTile}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Gradient shimmer</span>
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              height: 12,
+              borderRadius: 10,
+              background: `linear-gradient(120deg, ${preset.color}22, ${preset.color}66, ${preset.color}22)`,
+              backgroundSize: "200% 100%",
+              animation: `ds-shimmer ${duration.slow || "320ms"} ${easing} infinite`
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderFadeStack = () => (
+    <div style={loadingTile}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Fade stack</span>
+      </div>
+      <div style={{ display: "grid", gap: 10 }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              height: 14,
+              borderRadius: 8,
+              background: preset.color,
+              opacity: 0.7,
+              animation: `ds-fade-stack ${duration.normal || "200ms"} ease-in-out ${i * 120}ms infinite`
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderPulseBar = () => (
+    <div style={loadingTile}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Pulse bar</span>
+      </div>
+      <div style={{ display: "grid", gap: 10 }}>
+        <div
+          style={{
+            height: 12,
+            borderRadius: 10,
+            background: preset.color,
+            transformOrigin: "0% 50%",
+            animation: `ds-pulse-bar ${duration.slow || "320ms"} ${easing} infinite`
+          }}
+        />
+        <div
+          style={{
+            height: 10,
+            width: "70%",
+            borderRadius: 10,
+            background: `${preset.color}cc`,
+            transformOrigin: "0% 50%",
+            animation: `ds-pulse-bar ${duration.normal || "200ms"} ${easing} infinite alternate`
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  const renderSlideUp = () => (
+    <div style={loadingTile}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Slide-up tiles</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              height: 36,
+              borderRadius: 10,
+              background: `${preset.color}dd`,
+              animation: `ds-slide-up ${duration.normal || "200ms"} ${easing} ${i * 90}ms infinite alternate`
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderOrbitDots = () => (
+    <div style={loadingTile}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Orbit dots</span>
+      </div>
+      <div style={{ position: "relative", width: 54, height: 54, margin: "4px auto" }}>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            style={{
+              position: "absolute",
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: preset.color,
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              animation: `ds-orbit ${dotDuration} linear infinite`,
+              animationDelay: `${i * 120}ms`
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  switch (preset.kind) {
+    case "progress":
+      return renderProgress();
+    case "dots":
+      return renderDots();
+    case "shimmer":
+      return renderShimmer();
+    case "fade-stack":
+      return renderFadeStack();
+    case "pulse-bar":
+      return renderPulseBar();
+    case "slide-up":
+      return renderSlideUp();
+    case "orbit-dots":
+      return renderOrbitDots();
+    default:
+      return renderSkeleton();
+  }
 };
