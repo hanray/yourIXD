@@ -5,6 +5,7 @@ import {
   exportTokensJson,
   exportComponentsJson,
   exportTokensCss,
+  exportComponentsCss,
   exportFigmaVariablesJson,
   exportReadme,
 } from "@utils/exporters/fullExport";
@@ -45,6 +46,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
       name: "tokens.css",
       description: "CSS custom properties for browser use",
       filename: "tokens.css",
+      checked: true,
+    },
+    {
+      id: "components-css",
+      name: "components.css",
+      description: "Token-bound component styles for runtime",
+      filename: "components.css",
       checked: true,
     },
     {
@@ -104,6 +112,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
             break;
           case "tokens-css":
             content = exportTokensCss(snapshot);
+            break;
+          case "components-css":
+            content = exportComponentsCss(snapshot);
             break;
           case "figma-variables":
             content = exportFigmaVariablesJson(snapshot);

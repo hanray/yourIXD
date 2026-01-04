@@ -82,8 +82,8 @@ const SidebarItem: React.FC<ItemProps> = ({ label, active, onClick }) => (
       display: "block",
       padding: "8px 10px",
       borderRadius: "8px",
-      background: active ? "rgba(15, 98, 254, 0.08)" : "transparent",
-      color: active ? "#0f62fe" : "inherit",
+      background: active ? "color-mix(in srgb, var(--primary) 10%, transparent)" : "transparent",
+      color: active ? "var(--primary)" : "inherit",
       fontWeight: active ? 600 : 500,
       transition: "all 150ms ease"
     }}>

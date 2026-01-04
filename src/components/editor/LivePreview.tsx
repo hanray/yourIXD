@@ -95,8 +95,10 @@ export const LivePreview = ({ componentId }: Props) => {
     const base = spec.baseTokens;
     const stateTokens = stateKey !== "default" ? spec.states?.[stateKey] : undefined;
     const variantTokens = variantKey !== "default" ? spec.variants?.[variantKey] : undefined;
-    return mergeTokens(base, stateTokens, variantTokens);
-  }, [spec, stateKey, variantKey]);
+    const globals = snapshot.globals.stateDefaults as any;
+    const globalState = stateKey !== "default" ? globals?.[stateKey] : undefined;
+    return mergeTokens(base, globalState, stateTokens, variantTokens);
+  }, [spec, stateKey, variantKey, snapshot.globals.stateDefaults]);
 
   const style = tokens ? tokensToStyle(snapshot, tokens) : undefined;
   const loadingPreset = tokens?.motion?.loadingPreset ?? snapshot.globals.motion.loading?.defaultPreset ?? "skeleton";
@@ -121,10 +123,10 @@ export const LivePreview = ({ componentId }: Props) => {
       style={{
         borderLeft: "1px solid var(--border)",
         background: "var(--surface)",
-        padding: "20px",
+        padding: "var(--space-5)",
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: "var(--space-3)",
         height: "100%",
         overflow: "auto"
       }}
@@ -132,7 +134,7 @@ export const LivePreview = ({ componentId }: Props) => {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontWeight: 700 }}>Live Preview</div>
         {spec && (
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
             <select style={pillInput} value={stateKey} onChange={(e) => setStateKey(e.target.value)}>
               <option value="default">State: default</option>
               {Object.keys(spec.states ?? {}).map((s) => (
@@ -162,9 +164,9 @@ export const LivePreview = ({ componentId }: Props) => {
           background: polarity === "inverse" ? snapshot.globals.color.surface.inverse : snapshot.globals.color.surface.elevated,
           color: polarity === "inverse" ? snapshot.globals.color.text.inverse : snapshot.globals.color.text.primary,
           border: `1px solid ${snapshot.globals.color.border.default}`,
-          borderRadius: "16px",
-          padding: "24px",
-          minHeight: 240,
+          borderRadius: "var(--radius-lg)",
+          padding: "var(--space-6)",
+          minHeight: "calc(var(--space-10) * 5)",
           boxShadow: "var(--shadow-sm)",
           display: "flex",
           alignItems: "center",
@@ -174,7 +176,7 @@ export const LivePreview = ({ componentId }: Props) => {
         {spec ? (
           <PreviewExample componentId={spec.id} style={style} snapshot={snapshot} stateKey={stateKey} loadingPreset={loadingPreset} />
         ) : (
-          <div style={{ display: "grid", gap: 16, width: "100%" }}>
+          <div style={{ display: "grid", gap: "var(--space-4)", width: "100%" }}>
             <ThemePreview snapshot={snapshot} />
             <MotionPreview
               snapshot={snapshot}

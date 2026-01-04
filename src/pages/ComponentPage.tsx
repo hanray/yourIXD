@@ -437,12 +437,19 @@ export const ComponentPage = ({ componentId }: Props) => {
     return opts;
   }, [snapshot.globals.font.family, snapshot.globals.font.web?.family]);
 
+  const colorOptionsWithNone = useMemo(() => {
+    const noneOpt: Option = { label: "None (no border)", value: "__none__" };
+    return [...colorOptions, noneOpt];
+  }, [colorOptions]);
+
   const directionOptions: Option[] = [
     { label: "Row", value: "row" },
     { label: "Column", value: "column" },
     { label: "Row reverse", value: "row-reverse" },
     { label: "Column reverse", value: "column-reverse" }
   ];
+
+  if (!spec) return <div style={{ padding: 24 }}>Component not found</div>;
 
   const requiredStates = spec?.contract?.requiredStates ?? ["default"];
   const allStates = ["All", ...requiredStates];
@@ -451,7 +458,11 @@ export const ComponentPage = ({ componentId }: Props) => {
 
   const updateSelected = (patch: ComponentTokens) => {
     if (selectedState === "All") {
+      // Apply to base tokens and mirror to all states (except loading/selected/disabled) so "All" updates shared defaults.
       update(componentId, "base", componentId, patch);
+      requiredStates
+        .filter((s) => s !== "loading" && s !== "selected" && s !== "disabled")
+        .forEach((stateKey) => update(componentId, "state", stateKey, patch));
     } else {
       update(componentId, "state", selectedState, patch);
     }
@@ -470,8 +481,6 @@ export const ComponentPage = ({ componentId }: Props) => {
     }
     return typeof node === "string" ? node : "";
   };
-
-  if (!spec) return <div style={{ padding: 24 }}>Component not found</div>;
 
   const renderBaseGroup = () => (
     <div style={controlSectionFlat}>
@@ -573,8 +582,17 @@ export const ComponentPage = ({ componentId }: Props) => {
             <TokenControl
               label="Border"
               value={currentStateTokens.color?.border ?? spec.baseTokens.color?.border}
-              onChange={(v) => updateSelected({ color: mergePart(currentStateTokens.color, { border: v }) })}
-              options={colorOptions}
+              onChange={(v) => {
+                if (v === "__none__") {
+                  updateSelected({
+                    color: mergePart(currentStateTokens.color, { border: "transparent" }),
+                    border: mergePart(currentStateTokens.border, { style: "none", width: "0px", color: "transparent" })
+                  });
+                } else {
+                  updateSelected({ color: mergePart(currentStateTokens.color, { border: v }) });
+                }
+              }}
+              options={colorOptionsWithNone}
               resolveValue={toConcrete}
               placeholder="color.border.default"
               defaultValue={getDefaultValue("baseTokens.color.border")}
@@ -671,7 +689,13 @@ export const ComponentPage = ({ componentId }: Props) => {
                 <TokenControl
                   label="Border style"
                   value={currentStateTokens.border?.style ?? spec.baseTokens.border?.style ?? "solid"}
-                  onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { style: v }) })}
+                  onChange={(v) => {
+                    if (v === "none") {
+                      updateSelected({ border: mergePart(currentStateTokens.border, { style: "none", width: "0px", color: "transparent" }) });
+                    } else {
+                      updateSelected({ border: mergePart(currentStateTokens.border, { style: v }) });
+                    }
+                  }}
                   options={borderStyleOptions}
                   resolveValue={toConcrete}
                   placeholder="solid"
@@ -723,7 +747,13 @@ export const ComponentPage = ({ componentId }: Props) => {
                 <TokenControl
                   label="Border style"
                   value={currentStateTokens.border?.style ?? spec.baseTokens.border?.style ?? "solid"}
-                  onChange={(v) => updateSelected({ border: mergePart(currentStateTokens.border, { style: v }) })}
+                  onChange={(v) => {
+                    if (v === "none") {
+                      updateSelected({ border: mergePart(currentStateTokens.border, { style: "none", width: "0px", color: "transparent" }) });
+                    } else {
+                      updateSelected({ border: mergePart(currentStateTokens.border, { style: v }) });
+                    }
+                  }}
                   options={borderStyleOptions}
                   resolveValue={toConcrete}
                   placeholder="solid"
@@ -752,6 +782,8 @@ export const ComponentPage = ({ componentId }: Props) => {
   const inverseTokensPatch: ComponentTokens | undefined = inversePreview
     ? { color: { bg: "color.surface.inverse", fg: "color.text.inverse", border: "color.border.default" } }
     : undefined;
+
+  const globalStateDefaults = snapshot.globals.stateDefaults || {};
 
   const baselineMerged = mergeTokens(spec.baseTokens, spec.states?.default, inverseTokensPatch);
   const baselineStyle = tokensToStyle(snapshot, baselineMerged);
@@ -824,7 +856,7 @@ export const ComponentPage = ({ componentId }: Props) => {
             <div style={stateStrip}>
               {statesToRender.map((stateKey) => {
             const stateTokens = spec.states?.[stateKey];
-            const merged = mergeTokens(spec.baseTokens, stateTokens, inverseTokensPatch);
+            const merged = mergeTokens(spec.baseTokens, (globalStateDefaults as any)[stateKey], stateTokens, inverseTokensPatch);
             const style = tokensToStyle(snapshot, merged);
             const isActive = selectedState === stateKey;
             const showGhost = false;
@@ -1530,7 +1562,7 @@ const statePreviewSurface: CSSProperties = {
   position: "relative",
   borderRadius: 12,
   padding: 12,
-  background: "#ffffff",
+  background: "var(--surface)",
   minHeight: 60,
   border: "none",
   display: "flex",
@@ -1561,9 +1593,9 @@ const ghostLabel: CSSProperties = {
   position: "absolute",
   top: 8,
   right: 8,
-  background: "rgba(15,98,254,0.1)",
-  color: "#0f62fe",
-  borderRadius: 999,
+  background: "color-mix(in srgb, var(--primary) 10%, transparent)",
+  color: "var(--primary)",
+  borderRadius: "var(--radius-pill)",
   padding: "2px 8px",
   fontWeight: 700,
   fontSize: 11
@@ -1587,7 +1619,7 @@ const controlSectionFlat: CSSProperties = {
   display: "grid",
   gap: 16,
   paddingBottom: 32,
-  borderBottom: "1px solid #e8ecf0"
+  borderBottom: "1px solid var(--border)"
 };
 
 const sectionHeaderFlat: CSSProperties = {
@@ -1721,7 +1753,7 @@ const stateHeader: CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   paddingBottom: 8,
-  borderBottom: "1px solid #e8ecf0"
+  borderBottom: "1px solid var(--border)"
 };
 
 const miniLabel: CSSProperties = {
@@ -1815,17 +1847,17 @@ const railItem: CSSProperties = {
 };
 
 const railItemActive: CSSProperties = {
-  border: "1px solid #0f62fe",
-  boxShadow: "0 0 0 2px rgba(15,98,254,0.25)",
+  border: "1px solid var(--primary)",
+  boxShadow: "0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent)",
   background: "var(--surface)"
 };
 
 const dangerButton: CSSProperties = {
   padding: "10px 12px",
   borderRadius: 10,
-  border: "1px solid #f3b0b0",
-  background: "#fff7f7",
-  color: "#b91c1c",
+  border: "1px solid color-mix(in srgb, var(--color-semantic-danger-base, #e11d48) 40%, transparent)",
+  background: "color-mix(in srgb, var(--color-semantic-danger-base, #e11d48) 12%, var(--surface))",
+  color: "var(--color-semantic-danger-base, #b91c1c)",
   fontWeight: 700,
   cursor: "pointer",
   boxShadow: "var(--shadow-sm)"
@@ -1842,8 +1874,8 @@ const ghostButton: CSSProperties = {
 
 const pillButton: CSSProperties = {
   border: "none",
-  background: "#0f62fe",
-  color: "white",
+  background: "var(--primary)",
+  color: "var(--surface-alt)",
   borderRadius: 999,
   padding: "8px 14px",
   fontWeight: 700,
@@ -1854,7 +1886,7 @@ const pillButton: CSSProperties = {
 const resetLink: CSSProperties = {
   border: "none",
   background: "transparent",
-  color: "#0f62fe",
+  color: "var(--primary)",
   cursor: "pointer",
   fontWeight: 650
 };

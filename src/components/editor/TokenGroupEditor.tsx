@@ -11,8 +11,8 @@ interface TokenEditorProps {
 
 const TokenInput: React.FC<TokenEditorProps> = ({ label, value, onChange, useGlobal, onToggleGlobal }) => {
   return (
-    <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "8px" }}>
-      <label style={{ flex: "0 0 140px", fontSize: "13px", color: "#475569" }}>{label}</label>
+    <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-2)" }}>
+      <label style={{ flex: "0 0 140px", fontSize: "13px", color: "var(--text-muted)" }}>{label}</label>
       <input
         type="text"
         value={value}
@@ -20,22 +20,22 @@ const TokenInput: React.FC<TokenEditorProps> = ({ label, value, onChange, useGlo
         disabled={useGlobal}
         style={{
           flex: 1,
-          padding: "6px 10px",
-          borderRadius: "6px",
-          border: "1px solid #e2e8f0",
+          padding: "var(--space-2) var(--space-3)",
+          borderRadius: "var(--radius-sm)",
+          border: "1px solid var(--border)",
           fontSize: "13px",
-          backgroundColor: useGlobal ? "#f8f9fb" : "#ffffff",
+          backgroundColor: useGlobal ? "var(--surface-alt)" : "var(--surface)",
         }}
       />
       <button
         onClick={onToggleGlobal}
         style={{
-          padding: "6px 12px",
-          borderRadius: "6px",
-          border: "1px solid #e2e8f0",
+          padding: "var(--space-2) var(--space-3)",
+          borderRadius: "var(--radius-sm)",
+          border: "1px solid var(--border)",
           fontSize: "12px",
-          backgroundColor: useGlobal ? "#0f62fe" : "#ffffff",
-          color: useGlobal ? "#ffffff" : "#0f172a",
+          backgroundColor: useGlobal ? "var(--primary)" : "var(--surface)",
+          color: useGlobal ? "var(--surface-alt)" : "var(--text)",
           cursor: "pointer",
         }}
       >
@@ -95,7 +95,7 @@ export const TokenGroupEditor: React.FC<TokenGroupEditorProps> = ({ title, token
     if (!tokens.color) return null;
     return (
       <div>
-        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#0f172a" }}>Colors</div>
+        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "var(--text)" }}>Colors</div>
         {tokens.color.fg && (
           <TokenInput
             label="Foreground"
@@ -131,7 +131,7 @@ export const TokenGroupEditor: React.FC<TokenGroupEditorProps> = ({ title, token
     if (!tokens.typography) return null;
     return (
       <div style={{ marginTop: "20px" }}>
-        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#0f172a" }}>Typography</div>
+        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "var(--text)" }}>Typography</div>
         {tokens.typography.size && (
           <TokenInput
             label="Font Size"
@@ -167,7 +167,7 @@ export const TokenGroupEditor: React.FC<TokenGroupEditorProps> = ({ title, token
     if (!tokens.spacing) return null;
     return (
       <div style={{ marginTop: "20px" }}>
-        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#0f172a" }}>Spacing</div>
+        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "var(--text)" }}>Spacing</div>
         {tokens.spacing.paddingX && (
           <TokenInput
             label="Padding X"
@@ -202,7 +202,7 @@ export const TokenGroupEditor: React.FC<TokenGroupEditorProps> = ({ title, token
   const renderOtherTokens = () => {
     return (
       <div style={{ marginTop: "20px" }}>
-        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#0f172a" }}>Other</div>
+        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "var(--text)" }}>Other</div>
         {tokens.radius && (
           <TokenInput
             label="Border Radius"

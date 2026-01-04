@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useDesignSystem } from "@state/store";
 import { persistence, SnapshotMeta } from "@state/persistence";
 import { Panel } from "@components/common/Panel";
 import { Field } from "@components/forms/Field";
 import { LivePreview } from "@components/editor/LivePreview";
-import type { LoadingPresetKind } from "@models/designSystem";
 
 type Rgba = { r: number; g: number; b: number; a: number };
 
@@ -80,37 +79,6 @@ const safeHex = (value: string, fallback = "#000000") => {
   return hex.test(value.trim()) ? value.trim() : fallback;
 };
 
-const msNumber = (value?: string) => {
-  if (!value) return 0;
-  const n = Number.parseFloat(String(value).replace("ms", ""));
-  return Number.isFinite(n) ? n : 0;
-};
-
-const fallbackLoadingPresets = {
-  skeleton: { kind: "skeleton" },
-  progress: { kind: "progress" },
-  dots: { kind: "dots" },
-  shimmer: { kind: "shimmer" },
-  "fade-stack": { kind: "fade-stack" },
-  "pulse-bar": { kind: "pulse-bar" },
-  "slide-up": { kind: "slide-up" },
-  "orbit-dots": { kind: "orbit-dots" }
-} as const;
-
-type LoadingPresetResolved = { id: string; kind: LoadingPresetKind; color: string };
-
-const resolveLoadingPreset = (
-  motion: { color?: string; defaultPreset?: string; presets?: Record<string, { kind: LoadingPresetKind; color?: string }> },
-  presetId?: string
-): LoadingPresetResolved => {
-  const presets = motion?.presets ?? fallbackLoadingPresets;
-  const requested = presetId && (presets as any)[presetId] ? presetId : undefined;
-  const id = requested ?? motion?.defaultPreset ?? "skeleton";
-  const preset = (presets as any)[id] ?? fallbackLoadingPresets.skeleton;
-  const color = motion?.color || ("color" in preset ? preset.color : undefined) || "#e7f0ff";
-  return { id, kind: preset.kind, color };
-};
-
 const StepperInput = ({
   value,
   min,
@@ -184,7 +152,22 @@ export const ThemeSettingsPage = () => {
   const [available, setAvailable] = useState<SnapshotMeta[]>([]);
   const [selectedLoad, setSelectedLoad] = useState<string>("");
   const [loadStatus, setLoadStatus] = useState<"idle" | "success" | "error">("idle");
-  const [motionPreviewSeed, setMotionPreviewSeed] = useState(0);
+  const [webFontFamily, setWebFontFamily] = useState(snapshot.globals.font.web?.family ?? snapshot.globals.font.family.sans);
+  const [webFontSource, setWebFontSource] = useState(snapshot.globals.font.web?.source ?? "");
+  const [webFontKind, setWebFontKind] = useState<"url" | "google">(snapshot.globals.font.web?.kind ?? "url");
+  const basicFontOptions = [
+    "Inter",
+    "Arial",
+    "Segoe UI",
+    "Roboto",
+    "Helvetica Neue",
+    "Georgia",
+    "Times New Roman",
+    "Courier New",
+    "SF Pro Text"
+  ];
+  const [basicFont, setBasicFont] = useState(snapshot.globals.font.family.sans);
+  const [newRoleName, setNewRoleName] = useState("");
 
   useEffect(() => {
     setAvailable(persistence.list());
@@ -192,6 +175,33 @@ export const ThemeSettingsPage = () => {
     setDescription(snapshot.description ?? "");
   }, [snapshot.id, snapshot.name, snapshot.description]);
 
+  useEffect(() => {
+    const currentSans = snapshot.globals.font.family.sans;
+    setWebFontFamily(snapshot.globals.font.web?.family ?? currentSans);
+    setWebFontSource(snapshot.globals.font.web?.source ?? "");
+    setWebFontKind(snapshot.globals.font.web?.kind ?? "url");
+    setBasicFont(currentSans);
+  }, [snapshot.globals.font.web, snapshot.globals.font.family.sans]);
+
+  useEffect(() => {
+    const web = snapshot.globals.font.web;
+    if (!web || !web.family || !web.source) return;
+    const style = document.createElement("style");
+    style.setAttribute("data-ds-webfont", "active");
+    const format = web.source.endsWith("woff") ? "woff" : "woff2";
+    style.textContent = web.kind === "google"
+      ? `@import url('${web.source}');`
+      : `@font-face { font-family: '${web.family}'; src: url('${web.source}') format('${format}'); font-weight: 100 900; font-display: swap; }`;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, [snapshot.globals.font.web]);
+
+  const textRoleOptions = useMemo(() => Object.keys(snapshot.globals.textRole), [snapshot.globals.textRole]);
+  const fontSizeKeys = useMemo(() => Object.keys(snapshot.globals.font.size), [snapshot.globals.font.size]);
+  const lineHeightKeys = useMemo(() => Object.keys(snapshot.globals.lineHeight), [snapshot.globals.lineHeight]);
+  const weightKeys = useMemo(() => Object.keys(snapshot.globals.weight), [snapshot.globals.weight]);
   const spaceKeys = useMemo(() => Object.keys(snapshot.globals.space).sort((a, b) => Number(a) - Number(b)), [snapshot.globals.space]);
   const radiusKeys = useMemo(() => Object.keys(snapshot.globals.radius), [snapshot.globals.radius]);
   const shadowKeys = useMemo(() => Object.keys(snapshot.globals.shadow), [snapshot.globals.shadow]);
@@ -228,6 +238,32 @@ export const ThemeSettingsPage = () => {
   const updateDuration = (key: string, raw: number) => {
     const next = Number.isFinite(raw) ? Math.max(raw, 0) : 0;
     update(`motion.duration.${key}`, toMs(next));
+  };
+
+  const applyWebFont = () => {
+    const family = (webFontFamily || basicFont || "").trim();
+    const source = webFontSource.trim();
+
+    if (!family) {
+      console.info('[UI] Load font skipped: no family provided');
+      return;
+    }
+
+    if (source) {
+      console.info('[UI] Load font (remote)', { family, source, kind: webFontKind });
+      update("font.web.family", family);
+      update("font.web.source", source);
+      update("font.web.kind", webFontKind);
+      update("font.family.sans", family);
+      return;
+    }
+
+    console.info('[UI] Load font (basic selection)', { family });
+    update("font.web.family", undefined);
+    update("font.web.source", undefined);
+    update("font.web.kind", undefined);
+    update("font.family.sans", family);
+    setWebFontFamily(family);
   };
 
   const labelize = (key: string) => key.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -275,31 +311,6 @@ export const ThemeSettingsPage = () => {
   const removeCustomColor = (section: string, key: string) => {
     const path = `color.${section.toLowerCase()}.${key}`;
     update(path, undefined);
-  };
-
-  const loadingMotionRaw = snapshot.globals.motion.loading;
-  const loadingMotion = {
-    color: loadingMotionRaw?.color ?? "#e7f0ff",
-    defaultPreset: loadingMotionRaw?.defaultPreset ?? "skeleton",
-    presets: loadingMotionRaw?.presets ?? fallbackLoadingPresets
-  };
-
-  const loadingPresets = loadingMotion.presets ?? fallbackLoadingPresets;
-  const loadingPresetOptions = Object.keys(loadingPresets);
-  const currentLoadingPreset = resolveLoadingPreset(loadingMotion, loadingMotion.defaultPreset);
-
-  const presetLabel = (name: string) => {
-    const map: Record<string, string> = {
-      skeleton: "Skeleton shimmer",
-      progress: "Loading bar",
-      dots: "3 dots (sine)",
-      shimmer: "Gradient shimmer",
-      "fade-stack": "Fade stack",
-      "pulse-bar": "Pulse bar",
-      "slide-up": "Slide-up tiles",
-      "orbit-dots": "Orbit dots"
-    };
-    return map[name] ?? name;
   };
 
   return (
@@ -448,6 +459,118 @@ export const ThemeSettingsPage = () => {
           </div>
         </Panel>
 
+        <Panel title="Typography">
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={subtleHeader}>Web font loader</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              <Field
+                label="Basic font (no URL)"
+                input={(
+                  <select
+                    style={inputStyle}
+                    value={basicFont}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setBasicFont(next);
+                      setWebFontFamily(next);
+                      setWebFontSource("");
+                    }}
+                  >
+                    {basicFontOptions.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                )}
+              />
+              <Field label="Font family name" input={<input style={inputStyle} value={webFontFamily} onChange={(e) => setWebFontFamily(e.target.value)} />} />
+              <Field
+                label="Source (URL or Google import)"
+                input={<input style={inputStyle} value={webFontSource} onChange={(e) => setWebFontSource(e.target.value)} placeholder="https://...woff2 or https://fonts.googleapis.com/..." />}
+              />
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <label style={radioLabel}>
+                  <input type="radio" name="fontKind" checked={webFontKind === "url"} onChange={() => setWebFontKind("url")} style={radioInput} />
+                  File URL
+                </label>
+                <label style={radioLabel}>
+                  <input type="radio" name="fontKind" checked={webFontKind === "google"} onChange={() => setWebFontKind("google")} style={radioInput} />
+                  Google import
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button style={buttonPrimary} onClick={applyWebFont}>Load font</button>
+              </div>
+            </div>
+
+            <div style={subtleHeader}>Text roles → scale</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {textRoleOptions.map((role) => {
+                const config = snapshot.globals.textRole[role];
+                return (
+                  <div key={role} style={textRoleRow}>
+                    <div style={{ fontWeight: 600, minWidth: 110 }}>{role}</div>
+                    <select
+                      style={inputStyle}
+                      value={config.size}
+                      onChange={(e) => update(`textRole.${role}.size`, e.target.value)}
+                    >
+                      {fontSizeKeys.map((k) => (
+                        <option key={k} value={`font.size.${k}`}>
+                          Size {k}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      style={inputStyle}
+                      value={config.lineHeight}
+                      onChange={(e) => update(`textRole.${role}.lineHeight`, e.target.value)}
+                    >
+                      {lineHeightKeys.map((k) => (
+                        <option key={k} value={`lineHeight.${k}`}>
+                          Line {k}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      style={inputStyle}
+                      value={config.weight}
+                      onChange={(e) => update(`textRole.${role}.weight`, e.target.value)}
+                    >
+                      {weightKeys.map((k) => (
+                        <option key={k} value={`weight.${k}`}>
+                          Weight {k}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <input
+                  style={inputStyle}
+                  placeholder="New role name (e.g., 'hero')"
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                />
+                <button
+                  style={buttonPrimary}
+                  onClick={() => {
+                    if (newRoleName && !snapshot.globals.textRole[newRoleName]) {
+                      update(`textRole.${newRoleName}.size`, 'font.size.2');
+                      update(`textRole.${newRoleName}.weight`, 'weight.regular');
+                      update(`textRole.${newRoleName}.lineHeight`, 'lineHeight.normal');
+                      setNewRoleName('');
+                    }
+                  }}
+                  disabled={!newRoleName || !!snapshot.globals.textRole[newRoleName]}
+                >
+                  Add Role
+                </button>
+              </div>
+            </div>
+          </div>
+        </Panel>
+
         <Panel title="Spacing scale">
           <div style={{ display: "grid", gap: 12 }}>
             {spaceKeys.map((key, idx) => (
@@ -510,81 +633,6 @@ export const ThemeSettingsPage = () => {
                 <input style={inputStyle} value={value} onChange={(e) => update(`motion.easing.${key}`, e.target.value)} />
               </div>
             ))}
-
-            <div style={subtleHeader}>Loading animation</div>
-            <div style={{ display: "grid", gap: 12 }}>
-              <Field
-                label="Skeleton color"
-                input={(
-                  <input
-                    type="color"
-                    aria-label="Skeleton color"
-                    style={{ ...inputStyle, width: 80, padding: 4 }}
-                    value={loadingMotion.color}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      update("motion.loading.color", next);
-                      update("motion.loading.presets.skeleton.color", next);
-                    }}
-                  />
-                )}
-              />
-
-              <Field
-                label="Default loading preset"
-                input={(
-                  <select
-                    style={inputStyle}
-                    value={loadingMotion.defaultPreset}
-                    onChange={(e) => update("motion.loading.defaultPreset", e.target.value)}
-                  >
-                    {loadingPresetOptions.map((name) => (
-                      <option key={name} value={name}>
-                        {presetLabel(name)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              />
-
-              <div style={{ color: "var(--text-muted)", fontWeight: 600, fontSize: 13 }}>
-                Pick a default animation for all components. Individual components can override this under the Loading state.
-              </div>
-            </div>
-
-            <div style={subtleHeader}>Preview</div>
-            <div style={motionPreviewBox} key={motionPreviewSeed}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ display: "grid", gap: 2 }}>
-                  <span style={{ fontWeight: 700 }}>Loading preview</span>
-                  <span style={{ fontWeight: 600, color: "var(--text-muted)", textTransform: "capitalize" }}>{currentLoadingPreset.id}</span>
-                </div>
-                <button style={buttonPrimary} onClick={() => setMotionPreviewSeed((n) => n + 1)}>Replay</button>
-              </div>
-
-              <div style={{ display: "grid", gap: 12 }}>
-                <LoadingPreviewRow
-                  label="Card"
-                  preset={currentLoadingPreset}
-                  duration={snapshot.globals.motion.duration}
-                  easing={snapshot.globals.motion.easing.standard}
-                />
-                <LoadingPreviewRow
-                  label="Form"
-                  preset={currentLoadingPreset}
-                  duration={snapshot.globals.motion.duration}
-                  easing={snapshot.globals.motion.easing.standard}
-                  layout="split"
-                />
-                <LoadingPreviewRow
-                  label="Button row"
-                  preset={currentLoadingPreset}
-                  duration={snapshot.globals.motion.duration}
-                  easing={snapshot.globals.motion.easing.standard}
-                  layout="buttons"
-                />
-              </div>
-            </div>
           </div>
         </Panel>
       </div>
@@ -629,6 +677,37 @@ const colorInput: CSSProperties = {
   borderRadius: 12,
   border: "1px solid var(--border)",
   background: "var(--surface-alt)"
+};
+
+const colorRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "8px 10px",
+  borderRadius: 12,
+  background: "rgba(255,255,255,0.6)",
+  border: "1px solid var(--border)"
+};
+
+const stepperWrap: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  width: "100%"
+};
+
+const stepperButtons: CSSProperties = {
+  display: "flex",
+  gap: 6
+};
+
+const pillButton: CSSProperties = {
+  borderRadius: 10,
+  border: "1px solid var(--border)",
+  background: "var(--surface-alt)",
+  padding: "6px 10px",
+  cursor: "pointer",
+  fontWeight: 700
 };
 
 const subtleHeader: CSSProperties = {
@@ -712,286 +791,4 @@ const scaleRow: CSSProperties = {
 const mutedText: CSSProperties = {
   color: "var(--text-muted)",
   fontWeight: 600
-};
-
-const motionPreviewBox: CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: 14,
-  padding: 12,
-  background: "var(--surface-alt)",
-  display: "grid",
-  gap: 12
-};
-
-const stepperWrap: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8
-};
-
-const stepperButtons: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, 32px)",
-  gap: 4
-};
-
-const pillButton: CSSProperties = {
-  border: "1px solid var(--border)",
-  background: "var(--surface)",
-  borderRadius: 10,
-  padding: "6px 0",
-  cursor: "pointer",
-  fontWeight: 700
-};
-
-const colorRow: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "8px 10px",
-  borderRadius: 12,
-  border: "1px solid var(--border)",
-  background: "rgba(255,255,255,0.6)"
-};
-
-const loadingTile: CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: 12,
-  padding: 12,
-  background: "var(--surface)",
-  boxShadow: "var(--shadow-sm)",
-  display: "grid",
-  gap: 10
-};
-
-const loadingBarRow = (color: string, width: string, duration: string, easing: string): CSSProperties => ({
-  height: 12,
-  width,
-  borderRadius: 10,
-  background: color,
-  animation: `ds-pulse ${duration} ${easing} infinite alternate`
-});
-
-const LoadingPreviewRow = ({
-  label,
-  preset,
-  duration,
-  easing,
-  layout
-}: {
-  label: string;
-  preset: LoadingPresetResolved;
-  duration: { fast: string; normal: string; slow: string };
-  easing: string;
-  layout?: "split" | "buttons";
-}) => {
-  const dotDurationMs = Math.max(900, Math.round((msNumber(duration.slow) || 320) * 3));
-  const dotDuration = `${dotDurationMs}ms`;
-
-  const renderSkeleton = () => (
-    <div style={loadingTile}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700 }}>{label}</span>
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Skeleton</span>
-      </div>
-      <div style={{ display: "grid", gap: 8 }}>
-        <div style={loadingBarRow(preset.color, "72%", duration.slow || "320ms", easing)} />
-        <div style={loadingBarRow(preset.color, layout === "split" ? "48%" : "54%", duration.normal || "200ms", easing)} />
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1, ...loadingBarRow(preset.color, "100%", duration.fast || "120ms", easing) }} />
-          {layout !== "buttons" && <div style={{ flex: 1, ...loadingBarRow(preset.color, "100%", duration.fast || "120ms", easing) }} />}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderProgress = () => (
-    <div style={loadingTile}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700 }}>{label}</span>
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Loading bar</span>
-      </div>
-      <div style={{ height: 10, borderRadius: 999, background: `${preset.color}22`, overflow: "hidden", border: "1px solid var(--border)" }}>
-        <div
-          style={{
-            width: "70%",
-            height: "100%",
-            background: preset.color,
-            borderRadius: "inherit",
-            animation: `ds-progress-sweep ${duration.slow || "320ms"} ${easing} infinite`
-          }}
-        />
-      </div>
-    </div>
-  );
-
-  const renderDots = () => (
-    <div style={loadingTile}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700 }}>{label}</span>
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>3 dots</span>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 28 }}>
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              background: preset.color,
-              display: "inline-block",
-              animation: `ds-dots ${dotDuration} ease-in-out ${i * 140}ms infinite`
-            }}
-          />
-        ))}
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Loading</span>
-      </div>
-    </div>
-  );
-
-  const renderShimmer = () => (
-    <div style={loadingTile}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700 }}>{label}</span>
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Gradient shimmer</span>
-      </div>
-      <div style={{ display: "grid", gap: 8 }}>
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            style={{
-              height: 12,
-              borderRadius: 10,
-              background: `linear-gradient(120deg, ${preset.color}22, ${preset.color}66, ${preset.color}22)`,
-              backgroundSize: "200% 100%",
-              animation: `ds-shimmer ${duration.slow || "320ms"} ${easing} infinite`
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderFadeStack = () => (
-    <div style={loadingTile}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700 }}>{label}</span>
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Fade stack</span>
-      </div>
-      <div style={{ display: "grid", gap: 10 }}>
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            style={{
-              height: 14,
-              borderRadius: 8,
-              background: preset.color,
-              opacity: 0.7,
-              animation: `ds-fade-stack ${duration.normal || "200ms"} ease-in-out ${i * 120}ms infinite`
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderPulseBar = () => (
-    <div style={loadingTile}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700 }}>{label}</span>
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Pulse bar</span>
-      </div>
-      <div style={{ display: "grid", gap: 10 }}>
-        <div
-          style={{
-            height: 12,
-            borderRadius: 10,
-            background: preset.color,
-            transformOrigin: "0% 50%",
-            animation: `ds-pulse-bar ${duration.slow || "320ms"} ${easing} infinite`
-          }}
-        />
-        <div
-          style={{
-            height: 10,
-            width: "70%",
-            borderRadius: 10,
-            background: `${preset.color}cc`,
-            transformOrigin: "0% 50%",
-            animation: `ds-pulse-bar ${duration.normal || "200ms"} ${easing} infinite alternate`
-          }}
-        />
-      </div>
-    </div>
-  );
-
-  const renderSlideUp = () => (
-    <div style={loadingTile}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700 }}>{label}</span>
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Slide-up tiles</span>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            style={{
-              height: 36,
-              borderRadius: 10,
-              background: `${preset.color}dd`,
-              animation: `ds-slide-up ${duration.normal || "200ms"} ${easing} ${i * 90}ms infinite alternate`
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderOrbitDots = () => (
-    <div style={loadingTile}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontWeight: 700 }}>{label}</span>
-        <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Orbit dots</span>
-      </div>
-      <div style={{ position: "relative", width: 54, height: 54, margin: "4px auto" }}>
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            style={{
-              position: "absolute",
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              background: preset.color,
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              animation: `ds-orbit ${dotDuration} linear infinite`,
-              animationDelay: `${i * 120}ms`
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-
-  switch (preset.kind) {
-    case "progress":
-      return renderProgress();
-    case "dots":
-      return renderDots();
-    case "shimmer":
-      return renderShimmer();
-    case "fade-stack":
-      return renderFadeStack();
-    case "pulse-bar":
-      return renderPulseBar();
-    case "slide-up":
-      return renderSlideUp();
-    case "orbit-dots":
-      return renderOrbitDots();
-    default:
-      return renderSkeleton();
-  }
 };

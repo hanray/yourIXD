@@ -57,14 +57,12 @@ export type TextRoleTokens = {
   body: { size: string; weight: string; lineHeight: string };
   caption: { size: string; weight: string; lineHeight: string };
   label: { size: string; weight: string; lineHeight: string };
-  [key: string]: { size: string; weight: string; lineHeight: string };
 };
 
 export type LineHeightTokens = {
   tight: string;
   normal: string;
   relaxed: string;
-  [key: string]: string;
 };
 
 export type WeightTokens = {
@@ -72,10 +70,9 @@ export type WeightTokens = {
   medium: number;
   semibold: number;
   bold: number;
-  [key: string]: number;
 };
 
-export type SpaceTokens = Record<"0" | "1" | "2" | "3" | "4" | "5" | "6" | "8", string> & { [key: string]: string };
+export type SpaceTokens = Record<"0" | "1" | "2" | "3" | "4" | "5" | "6" | "8", string>;
 
 export type RadiusTokens = {
   none: string;
@@ -83,7 +80,6 @@ export type RadiusTokens = {
   md: string;
   lg: string;
   full: string;
-  [key: string]: string;
 };
 
 export type ShadowTokens = {
@@ -91,7 +87,6 @@ export type ShadowTokens = {
   sm: string;
   md: string;
   lg: string;
-  [key: string]: string;
 };
 
 export type MotionTokens = {
@@ -104,22 +99,7 @@ export type MotionTokens = {
     standard: string;
     emphasized: string;
   };
-  loading?: {
-    color: string;
-    defaultPreset: LoadingPresetKind;
-    presets: Record<string, { kind: LoadingPresetKind; color?: string }>;
-  };
 };
-
-export type LoadingPresetKind =
-  | "skeleton"
-  | "progress"
-  | "dots"
-  | "shimmer"
-  | "fade-stack"
-  | "pulse-bar"
-  | "slide-up"
-  | "orbit-dots";
 
 export type Globals = {
   color: ColorTokens;
@@ -162,15 +142,10 @@ export type ComponentTokens = {
     transition?: string;
     duration?: string;
     easing?: string;
-    loadingPreset?: string;
   };
   layout?: {
     minWidth?: string;
     maxWidth?: string;
-    direction?: string;
-    stackGap?: string;
-    showDivider?: boolean;
-    dividerColor?: string;
   };
 };
 
@@ -297,38 +272,7 @@ export const designSystemSchema: z.ZodType<DesignSystemSnapshot> = z.object({
     shadow: z.object({ none: z.string(), sm: z.string(), md: z.string(), lg: z.string() }),
     motion: z.object({
       duration: z.object({ fast: z.string(), normal: z.string(), slow: z.string() }),
-      easing: z.object({ standard: z.string(), emphasized: z.string() }),
-      loading: z
-        .object({
-          color: z.string(),
-          defaultPreset: z.union([
-            z.literal("skeleton"),
-            z.literal("progress"),
-            z.literal("dots"),
-            z.literal("shimmer"),
-            z.literal("fade-stack"),
-            z.literal("pulse-bar"),
-            z.literal("slide-up"),
-            z.literal("orbit-dots")
-          ]),
-          presets: z.record(
-            z.string(),
-            z.object({
-              kind: z.union([
-                z.literal("skeleton"),
-                z.literal("progress"),
-                z.literal("dots"),
-                z.literal("shimmer"),
-                z.literal("fade-stack"),
-                z.literal("pulse-bar"),
-                z.literal("slide-up"),
-                z.literal("orbit-dots")
-              ]),
-              color: z.string().optional()
-            })
-          )
-        })
-        .optional()
+      easing: z.object({ standard: z.string(), emphasized: z.string() })
     })
   }),
   components: z.record(

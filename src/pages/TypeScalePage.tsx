@@ -905,15 +905,15 @@ const newRoleRow: CSSProperties = {
 };
 
 const buttonPrimary: CSSProperties = {
-  background: "#0f62fe",
-  color: "#fff",
+  background: "var(--primary)",
+  color: "var(--surface-alt)",
   border: "none",
-  borderRadius: 10,
-  padding: "10px 14px",
+  borderRadius: "var(--radius-md)",
+  padding: "var(--space-3) var(--space-4)",
   fontWeight: 750,
   cursor: "pointer",
   boxShadow: "var(--shadow-sm)",
-  transition: "transform 120ms ease, box-shadow 120ms ease"
+  transition: `transform var(--motion-duration-fast, 160ms) var(--motion-easing-standard, ease), box-shadow var(--motion-duration-fast, 160ms) var(--motion-easing-standard, ease)`
 };
 
 const radioRow: CSSProperties = {
@@ -930,7 +930,7 @@ const radioLabel: CSSProperties = {
 };
 
 const radioInput: CSSProperties = {
-  accentColor: "#0f62fe",
+  accentColor: "var(--primary)",
   width: 16,
   height: 16
 };
@@ -1026,16 +1026,16 @@ const mini: CSSProperties = {
 const pill: CSSProperties = {
   border: "1px solid var(--border)",
   background: "transparent",
-  borderRadius: 999,
-  padding: "8px 12px",
+  borderRadius: "var(--radius-pill)",
+  padding: "var(--space-2) var(--space-3)",
   fontWeight: 700,
   cursor: "pointer"
 };
 
 const pillActive: CSSProperties = {
-  background: "rgba(15,98,254,0.12)",
-  color: "#0f62fe",
-  borderColor: "rgba(15,98,254,0.3)"
+  background: "color-mix(in srgb, var(--primary) 14%, transparent)",
+  color: "var(--primary)",
+  borderColor: "color-mix(in srgb, var(--primary) 30%, transparent)"
 };
 
 const lineItem: CSSProperties = {
@@ -1070,7 +1070,7 @@ const dragHandle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "0 2px",
-  background: "linear-gradient(180deg, rgba(15,98,254,0.08), rgba(15,98,254,0.02))",
+  background: "linear-gradient(180deg, color-mix(in srgb, var(--primary) 8%, transparent), color-mix(in srgb, var(--primary) 2%, transparent))",
   borderRadius: 12,
   alignSelf: "stretch",
   height: "100%"

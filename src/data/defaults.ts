@@ -1,5 +1,17 @@
 import { DesignSystemSnapshot } from "@models/designSystem";
 import { createId } from "@utils/ids";
+import { iconLibraries, iconLibraryIds, defaultSemanticNames } from "@data/iconLibraries";
+
+const defaultIconMapping = () => {
+  const base: Record<string, Record<string, string>> = {};
+  iconLibraryIds.forEach((id) => {
+    base[id] = defaultSemanticNames.reduce<Record<string, string>>((acc, semantic) => {
+      acc[semantic] = semantic.replace(/^icon\./, "");
+      return acc;
+    }, {});
+  });
+  return base as Record<(typeof iconLibraryIds)[number], Record<string, string>>;
+};
 
 const now = () => new Date().toISOString();
 
@@ -11,6 +23,18 @@ export const defaultSnapshot = (): DesignSystemSnapshot => ({
   updatedAt: now(),
   version: "0.1.0",
   globals: {
+    layout: {
+      gap: {
+        section: "clamp(64px, 8vh, 96px)",
+        subsection: "clamp(40px, 5vh, 64px)",
+        stack: "24px"
+      }
+    },
+    stateDefaults: {
+      active: { color: { border: "color.accent.primary.active", bg: "color.accent.primary.active", fg: "color.accent.primary.contrast" }, shadow: "shadow.sm" },
+      focus: { color: { border: "color.border.focus" }, shadow: "shadow.md" },
+      selected: { color: { border: "color.accent.primary.base", bg: "color.surface.subtle" }, shadow: "shadow.sm" }
+    },
     color: {
       surface: {
         base: "#f8f9fb",
@@ -91,6 +115,18 @@ export const defaultSnapshot = (): DesignSystemSnapshot => ({
           dots: { kind: "dots", color: "#0f62fe" }
         }
       }
+    },
+    icons: {
+      selectedLibrary: "lucide",
+      libraries: iconLibraries,
+      semanticNames: defaultSemanticNames,
+      mapping: defaultIconMapping(),
+      sizes: {
+        desktop: "20px",
+        mobile: "18px",
+        roles: {}
+      },
+      customIcons: []
     }
   },
   components: {
@@ -684,6 +720,120 @@ export const defaultSnapshot = (): DesignSystemSnapshot => ({
         spacing: { paddingX: "space.5", paddingY: "space.5" },
         radius: "radius.full",
         shadow: "shadow.sm"
+      }
+    },
+    "date-picker": {
+      id: "date-picker",
+      label: "Date Picker",
+      contract: {
+        anatomy: { paddingX: "space.4", paddingY: "space.3", gap: "space.2", radius: "radius.md", borderWidth: "1px" },
+        semantics: { bg: "color.surface.elevated", text: "color.text.primary", border: "color.border.default", shadow: "shadow.md" },
+        variants: [
+          { name: "inline", kind: "style", tokens: { shadow: "shadow.none", spacing: { paddingX: "space.2", paddingY: "space.2" } } },
+          { name: "range", kind: "style" },
+          { name: "compact", kind: "size", tokens: { spacing: { paddingX: "space.3", paddingY: "space.2" } } }
+        ],
+        states: {
+          default: {},
+          hover: { color: { border: "color.border.focus" }, shadow: "shadow.md" },
+          active: { shadow: "shadow.sm" },
+          focus: { color: { border: "color.border.focus" }, shadow: "shadow.md" },
+          disabled: { color: { fg: "color.text.disabled", bg: "color.surface.subtle", border: "color.border.subtle" }, shadow: "shadow.none" },
+          loading: {},
+          selected: { color: { border: "color.accent.primary.base" } }
+        },
+        requiredStates: ["default", "hover", "active", "focus", "disabled", "loading", "selected"],
+        forbiddenOverrides: ["removeFocusRing", "arbitraryShadow"]
+      },
+      baseTokens: {
+        color: { fg: "color.text.primary", bg: "color.surface.elevated", border: "color.border.default" },
+        spacing: { paddingX: "space.4", paddingY: "space.3", gap: "space.2" },
+        radius: "radius.md",
+        shadow: "shadow.md",
+        motion: { duration: "motion.duration.normal", easing: "motion.easing.standard" }
+      },
+      states: {
+        hover: { color: { border: "color.border.focus" }, shadow: "shadow.md" },
+        active: { shadow: "shadow.sm" },
+        focus: { color: { border: "color.border.focus" }, shadow: "shadow.md" },
+        disabled: { color: { fg: "color.text.disabled", bg: "color.border.subtle", border: "color.border.subtle" }, shadow: "shadow.none" }
+      }
+    },
+    form: {
+      id: "form",
+      label: "Form",
+      contract: {
+        anatomy: { paddingX: "space.5", paddingY: "space.5", gap: "space.4", radius: "radius.md", borderWidth: "1px" },
+        semantics: { bg: "color.surface.elevated", text: "color.text.primary", border: "color.border.default", shadow: "shadow.sm" },
+        variants: [
+          { name: "inline", kind: "style", tokens: { spacing: { paddingX: "space.3", paddingY: "space.3", gap: "space.3" }, shadow: "shadow.none", color: { bg: "transparent", border: "transparent" } } },
+          { name: "card", kind: "style", tokens: { shadow: "shadow.md" } }
+        ],
+        states: {
+          default: {},
+          hover: { shadow: "shadow.md" },
+          active: { shadow: "shadow.sm" },
+          focus: { color: { border: "color.border.focus" } },
+          disabled: { color: { fg: "color.text.disabled", bg: "color.surface.subtle", border: "color.border.subtle" } },
+          loading: {},
+          selected: {}
+        },
+        requiredStates: ["default", "hover", "active", "focus", "disabled", "loading", "selected"],
+        forbiddenOverrides: ["removeGap"]
+      },
+      baseTokens: {
+        color: { fg: "color.text.primary", bg: "color.surface.elevated", border: "color.border.default" },
+        spacing: { paddingX: "space.5", paddingY: "space.5", gap: "space.4" },
+        radius: "radius.md",
+        shadow: "shadow.sm",
+        layout: { direction: "column", stackGap: "space.4" }
+      },
+      states: {
+        hover: { shadow: "shadow.md" },
+        active: { shadow: "shadow.sm" },
+        focus: { color: { border: "color.border.focus" } },
+        disabled: { color: { fg: "color.text.disabled", bg: "color.border.subtle", border: "color.border.subtle" }, shadow: "shadow.none" }
+      }
+    },
+    "pill-badge": {
+      id: "pill-badge",
+      label: "Pill Badge",
+      contract: {
+        anatomy: { paddingX: "space.3", paddingY: "space.1", gap: "space.1", radius: "radius.full", borderWidth: "0px" },
+        semantics: { bg: "color.surface.subtle", text: "color.text.primary", border: "transparent", shadow: "shadow.none" },
+        variants: [
+          { name: "primary", kind: "intent", tokens: { color: { bg: "color.accent.primary.base", fg: "color.accent.primary.contrast" } } },
+          { name: "success", kind: "intent", tokens: { color: { bg: "color.accent.primary.hover", fg: "color.accent.primary.contrast" } } },
+          { name: "neutral", kind: "style", tokens: { color: { bg: "color.surface.subtle", fg: "color.text.primary", border: "color.border.subtle" } } }
+        ],
+        states: {
+          default: {},
+          hover: { shadow: "shadow.sm" },
+          active: { shadow: "shadow.none" },
+          focus: { color: { border: "color.border.focus" } },
+          disabled: { color: { fg: "color.text.disabled", bg: "color.surface.subtle" } },
+          loading: {},
+          selected: { color: { border: "color.accent.primary.base" } }
+        },
+        requiredStates: ["default", "hover", "active", "focus", "disabled", "loading", "selected"],
+        forbiddenOverrides: ["addDropShadow"]
+      },
+      baseTokens: {
+        color: { fg: "color.text.primary", bg: "color.surface.subtle", border: "transparent" },
+        spacing: { paddingX: "space.3", paddingY: "space.1" },
+        radius: "radius.full",
+        shadow: "shadow.none"
+      },
+      states: {
+        hover: { shadow: "shadow.sm" },
+        active: { shadow: "shadow.none" },
+        focus: { color: { border: "color.border.focus" } },
+        disabled: { color: { fg: "color.text.disabled", bg: "color.surface.subtle" } }
+      },
+      variants: {
+        primary: { color: { bg: "color.accent.primary.base", fg: "color.accent.primary.contrast" } },
+        success: { color: { bg: "color.accent.primary.hover", fg: "color.accent.primary.contrast" } },
+        neutral: { color: { bg: "color.surface.subtle", fg: "color.text.primary", border: "color.border.subtle" } }
       }
     }
   }

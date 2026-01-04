@@ -18,8 +18,8 @@ export const LoadingButton = ({
   variant = "primary"
 }: LoadingButtonProps) => {
   const baseStyle: CSSProperties = {
-    padding: "10px 14px",
-    borderRadius: 12,
+    padding: "var(--space-3) var(--space-4)",
+    borderRadius: "var(--radius-md)",
     border: "1px solid var(--border)",
     cursor: disabled || loading ? "not-allowed" : "pointer",
     fontWeight: variant === "primary" ? 700 : 600,
@@ -29,13 +29,13 @@ export const LoadingButton = ({
     justifyContent: "center",
     gap: 8,
     opacity: disabled || loading ? 0.6 : 1,
-    transition: "all 150ms ease",
+    transition: `all var(--motion-duration-normal, 180ms) var(--motion-easing-standard, ease)`,
     position: "relative"
   };
 
   const variantStyles: CSSProperties =
     variant === "primary"
-      ? { background: "#0f62fe", color: "white", borderColor: "#0f62fe" }
+      ? { background: "var(--primary)", color: "var(--surface-alt)", borderColor: "var(--primary)" }
       : variant === "secondary"
         ? { background: "var(--surface-alt)", color: "var(--text)" }
         : { background: "transparent", color: "var(--text)" };
